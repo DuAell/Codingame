@@ -3,7 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27130.2027
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Codingame", "Codingame\Codingame.csproj", "{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BottersOfTheGalaxy", "Codingame\BottersOfTheGalaxy.csproj", "{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Code4Life", "Code4Life\Code4Life.csproj", "{D195F6FC-394F-4BF2-9690-78D769B4CB79}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodersStrikeBack", "CodersStrikeBack\CodersStrikeBack.csproj", "{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D195F6FC-394F-4BF2-9690-78D769B4CB79}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D195F6FC-394F-4BF2-9690-78D769B4CB79}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D195F6FC-394F-4BF2-9690-78D769B4CB79}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D195F6FC-394F-4BF2-9690-78D769B4CB79}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
