@@ -12,23 +12,36 @@ using System.Runtime.CompilerServices;
  **/
 class Player
 {
+    static string debugInitInput;
+    static string debugInput;
+    
+    static string ReadLine(bool isInit = false)
+    {
+        string input = Console.ReadLine();
+        if (isInit)
+            debugInitInput += input + @"\n";
+        else
+            debugInput += input + @"\n";
+        return input;
+    }
+    
     static void Main(string[] args)
     {
         string[] inputs;
-        int myTeam = int.Parse(Console.ReadLine());
-        int bushAndSpawnPointCount = int.Parse(Console.ReadLine()); // usefrul from wood1, represents the number of bushes and the number of places where neutral units can spawn
+        int myTeam = int.Parse(ReadLine(true));
+        int bushAndSpawnPointCount = int.Parse(ReadLine(true)); // usefrul from wood1, represents the number of bushes and the number of places where neutral units can spawn
         for (int i = 0; i < bushAndSpawnPointCount; i++)
         {
-            inputs = Console.ReadLine().Split(' ');
+            inputs = ReadLine(true).Split(' ');
             string entityType = inputs[0]; // BUSH, from wood1 it can also be SPAWN
             int x = int.Parse(inputs[1]);
             int y = int.Parse(inputs[2]);
             int radius = int.Parse(inputs[3]);
         }
-        int itemCount = int.Parse(Console.ReadLine()); // useful from wood2
+        int itemCount = int.Parse(ReadLine(true)); // useful from wood2
         for (int i = 0; i < itemCount; i++)
         {
-            inputs = Console.ReadLine().Split(' ');
+            inputs = ReadLine(true).Split(' ');
             string itemName = inputs[0]; // contains keywords such as BRONZE, SILVER and BLADE, BOOTS connected by "_" to help you sort easier
             int itemCost = int.Parse(inputs[1]); // BRONZE items have lowest cost, the most expensive items are LEGENDARY
             int damage = int.Parse(inputs[2]); // keyword BLADE is present if the most important item stat is damage
@@ -44,15 +57,17 @@ class Player
         // game loop
         while (true)
         {
+            debugInput = string.Empty;
+            
             List<Unit> _units = new List<Unit>();
 
-            int gold = int.Parse(Console.ReadLine());
-            int enemyGold = int.Parse(Console.ReadLine());
-            int roundType = int.Parse(Console.ReadLine()); // a positive value will show the number of heroes that await a command
-            int entityCount = int.Parse(Console.ReadLine());
+            int gold = int.Parse(ReadLine());
+            int enemyGold = int.Parse(ReadLine());
+            int roundType = int.Parse(ReadLine()); // a positive value will show the number of heroes that await a command
+            int entityCount = int.Parse(ReadLine());
             for (int i = 0; i < entityCount; i++)
             {
-                inputs = Console.ReadLine().Split(' ');
+                inputs = ReadLine().Split(' ');
                 switch (inputs[2])
                 {
                     case "UNIT":
@@ -69,7 +84,9 @@ class Player
                         break;
                 }
             }
-
+            
+            Console.Error.WriteLine(debugInitInput + debugInput);
+            
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
 
