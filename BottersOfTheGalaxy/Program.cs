@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 /**
  * Made with love by AntiSquid, Illedan and Wildum.
@@ -43,6 +44,8 @@ class Player
         // game loop
         while (true)
         {
+            List<Unit> _units = new List<Unit>();
+
             int gold = int.Parse(Console.ReadLine());
             int enemyGold = int.Parse(Console.ReadLine());
             int roundType = int.Parse(Console.ReadLine()); // a positive value will show the number of heroes that await a command
@@ -50,28 +53,21 @@ class Player
             for (int i = 0; i < entityCount; i++)
             {
                 inputs = Console.ReadLine().Split(' ');
-                int unitId = int.Parse(inputs[0]);
-                int team = int.Parse(inputs[1]);
-                string unitType = inputs[2]; // UNIT, HERO, TOWER, can also be GROOT from wood1
-                int x = int.Parse(inputs[3]);
-                int y = int.Parse(inputs[4]);
-                int attackRange = int.Parse(inputs[5]);
-                int health = int.Parse(inputs[6]);
-                int maxHealth = int.Parse(inputs[7]);
-                int shield = int.Parse(inputs[8]); // useful in bronze
-                int attackDamage = int.Parse(inputs[9]);
-                int movementSpeed = int.Parse(inputs[10]);
-                int stunDuration = int.Parse(inputs[11]); // useful in bronze
-                int goldValue = int.Parse(inputs[12]);
-                int countDown1 = int.Parse(inputs[13]); // all countDown and mana variables are useful starting in bronze
-                int countDown2 = int.Parse(inputs[14]);
-                int countDown3 = int.Parse(inputs[15]);
-                int mana = int.Parse(inputs[16]);
-                int maxMana = int.Parse(inputs[17]);
-                int manaRegeneration = int.Parse(inputs[18]);
-                string heroType = inputs[19]; // DEADPOOL, VALKYRIE, DOCTOR_STRANGE, HULK, IRONMAN
-                int isVisible = int.Parse(inputs[20]); // 0 if it isn't
-                int itemsOwned = int.Parse(inputs[21]); // useful from wood1
+                switch (inputs[2])
+                {
+                    case "UNIT":
+                        _units.Add(new Unit(inputs));
+                        break;
+                    case "HERO":
+                        _units.Add(new Hero(inputs));
+                        break;
+                    case "TOWER":
+                        _units.Add(new Tower(inputs));
+                        break;
+                    case "GROOT":
+                        _units.Add(new Groot(inputs));
+                        break;
+                }
             }
 
             // Write an action using Console.WriteLine()
@@ -86,8 +82,90 @@ class Player
             }
             else
             {
-                Console.WriteLine("ATTACK_NEAREST UNIT;YAHHHHHHHHHHHHH !");
+                Console.WriteLine("ATTACK_NEAREST UNIT");
             }
+        }
+    }
+
+    public class Position
+    {
+        public double X;
+        public double Y;
+
+        public Position(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
+    public class Unit : Position
+    {
+        public int unitId;
+        public int team;
+        public int attackRange;
+        public int health;
+        public int maxHealth;
+        public int shield;
+        public int attackDamage;
+        public int movementSpeed;
+        public int stunDuration;
+        public int goldValue;
+        
+        public Unit(string[] inputs) : base(int.Parse(inputs[3]), int.Parse(inputs[4]))
+        {
+            unitId = int.Parse(inputs[0]);
+            team = int.Parse(inputs[1]);
+            attackRange = int.Parse(inputs[5]);
+            health = int.Parse(inputs[6]);
+            maxHealth = int.Parse(inputs[7]);
+            shield = int.Parse(inputs[8]); // useful in bronze
+            attackDamage = int.Parse(inputs[9]);
+            movementSpeed = int.Parse(inputs[10]);
+            stunDuration = int.Parse(inputs[11]); // useful in bronze
+            goldValue = int.Parse(inputs[12]);
+        }
+    }
+
+    public class Hero : Unit
+    {
+        public int countDown1;
+        public int countDown2;
+        public int countDown3;
+        public int mana;
+        public int maxMana;
+        public int manaRegeneration;
+        public string heroType;
+        public bool isVisible;
+        public int itemsOwned;
+
+        public Hero(string[] inputs) : base(inputs)
+        {
+            countDown1 = int.Parse(inputs[13]); // all countDown and mana variables are useful starting in bronze
+            countDown2 = int.Parse(inputs[14]);
+            countDown3 = int.Parse(inputs[15]);
+            mana = int.Parse(inputs[16]);
+            maxMana = int.Parse(inputs[17]);
+            manaRegeneration = int.Parse(inputs[18]);
+            heroType = inputs[19]; // DEADPOOL, VALKYRIE, DOCTOR_STRANGE, HULK, IRONMAN
+            isVisible = int.Parse(inputs[20]) == 1; // 0 if it isn't
+            itemsOwned = int.Parse(inputs[21]); // useful from wood1
+        }
+    }
+
+    public class Tower : Unit
+    {
+        public Tower(string[] inputs) : base(inputs)
+        {
+
+        }
+    }
+
+    public class Groot : Unit
+    {
+        public Groot(string[] inputs) : base(inputs)
+        {
+
         }
     }
 }
