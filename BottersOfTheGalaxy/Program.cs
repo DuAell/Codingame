@@ -4,18 +4,26 @@ using System.IO;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 
 /**
  * Made with love by AntiSquid, Illedan and Wildum.
  * You can help children learn to code while you participate by donating to CoderDojo.
  **/
-class Player
+public class Player
 {
-    static string debugInitInput;
-    static string debugInput;
-    static int myTeam;
-    static Hero MyHero;
+    private static string debugInitInput;
+    private static string debugInput;
+    private static int myTeam;
+    private static Hero MyHero;
+    private static List<Bush> _bushes = new List<Bush>();
+    private static List<Item> _items = new List<Item>();
+    private static List<Unit> _units;
+    private static int gold;
+    private static int enemyGold;
+    private static int roundType; // a positive value will show the number of heroes that await a command
 
     static string ReadLine(bool isInit = false)
     {
@@ -27,21 +35,88 @@ class Player
         return input;
     }
 
-    static void Main(string[] args)
+    public void DebugMain(string data)
+    {
+        using (var sr = new StringReader(data))
+        {
+            string[] inputs;
+            myTeam = int.Parse(sr.ReadLine());
+
+            int bushAndSpawnPointCount = int.Parse(sr.ReadLine()); // useful from wood1, represents the number of bushes and the number of places where neutral units can spawn
+            for (int i = 0; i < bushAndSpawnPointCount; i++)
+            {
+                inputs = sr.ReadLine().Split(' ');
+                _bushes.Add(new Bush(inputs));
+            }
+
+            int itemCount = int.Parse(sr.ReadLine()); // useful from wood2
+            for (int i = 0; i < itemCount; i++)
+            {
+                inputs = sr.ReadLine().Split(' ');
+                _items.Add(new Item(inputs));
+            }
+
+            _units = new List<Unit>();
+
+            // game loop
+            //while (true)
+            //{
+            
+            gold = int.Parse(sr.ReadLine());
+            enemyGold = int.Parse(sr.ReadLine());
+            roundType = int.Parse(sr.ReadLine()); // a positive value will show the number of heroes that await a command
+
+            _units = new List<Unit>();
+            int entityCount = int.Parse(sr.ReadLine());
+            for (int i = 0; i < entityCount; i++)
+            {
+                inputs = sr.ReadLine().Split(' ');
+                ReadUnits(inputs);
+            }
+
+            GameLogic();
+            //}
+        }
+    }
+
+    public static void ReadUnits(string[] inputs)
+    {
+        Unit unit = null;
+
+        switch (inputs[2])
+        {
+            case "UNIT":
+                unit = new Unit(inputs);
+                break;
+            case "HERO":
+                unit = new Hero(inputs);
+                if (unit.team == myTeam)
+                    MyHero = (Hero)unit;
+                break;
+            case "TOWER":
+                unit = new Tower(inputs);
+                break;
+            case "GROOT":
+                unit = new Groot(inputs);
+                break;
+        }
+
+        if (unit.team == myTeam)
+            unit.IsMine = true;
+        _units.Add(unit);
+    }
+
+    public static void Main(string[] args)
     {
         string[] inputs;
         myTeam = int.Parse(ReadLine(true));
-        int bushAndSpawnPointCount = int.Parse(ReadLine(true)); // usefrul from wood1, represents the number of bushes and the number of places where neutral units can spawn
+
+        int bushAndSpawnPointCount = int.Parse(ReadLine(true)); // useful from wood1, represents the number of bushes and the number of places where neutral units can spawn
         for (int i = 0; i < bushAndSpawnPointCount; i++)
         {
             inputs = ReadLine(true).Split(' ');
-            string entityType = inputs[0]; // BUSH, from wood1 it can also be SPAWN
-            int x = int.Parse(inputs[1]);
-            int y = int.Parse(inputs[2]);
-            int radius = int.Parse(inputs[3]);
+            _bushes.Add(new Bush(inputs));
         }
-
-        List<Item> _items = new List<Item>();
 
         int itemCount = int.Parse(ReadLine(true)); // useful from wood2
         for (int i = 0; i < itemCount; i++)
@@ -55,111 +130,95 @@ class Player
         {
             debugInput = string.Empty;
 
-            List<Unit> _units = new List<Unit>();
+            gold = int.Parse(ReadLine());
+            enemyGold = int.Parse(ReadLine());
+            roundType = int.Parse(ReadLine()); // a positive value will show the number of heroes that await a command
 
-            int gold = int.Parse(ReadLine());
-            int enemyGold = int.Parse(ReadLine());
-            int roundType = int.Parse(ReadLine()); // a positive value will show the number of heroes that await a command
+            _units = new List<Unit>();
             int entityCount = int.Parse(ReadLine());
             for (int i = 0; i < entityCount; i++)
             {
                 inputs = ReadLine().Split(' ');
-                Unit unit = null;
-
-                switch (inputs[2])
-                {
-                    case "UNIT":
-                        unit = new Unit(inputs);
-                        break;
-                    case "HERO":
-                        unit = new Hero(inputs);
-                        if (unit.team == myTeam)
-                            MyHero = (Hero)unit;
-                        break;
-                    case "TOWER":
-                        unit = new Tower(inputs);
-                        break;
-                    case "GROOT":
-                        unit = new Groot(inputs);
-                        break;
-                }
-
-                if (unit.team == myTeam)
-                    unit.IsMine = true;
-                _units.Add(unit);
+                ReadUnits(inputs);
             }
 
             Console.Error.WriteLine(debugInitInput + debugInput);
 
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
+            new Player().GameLogic();
+        }
+    }
 
-
-            // If roundType has a negative value then you need to output a Hero name, such as "DEADPOOL" or "VALKYRIE".
-            // Else you need to output roundType number of any valid action, such as "WAIT" or "ATTACK unitId"
-            if (roundType < 0)
-            {
+    public void GameLogic()
+    {
+        // If roundType has a negative value then you need to output a Hero name, such as "DEADPOOL" or "VALKYRIE".
+        // Else you need to output roundType number of any valid action, such as "WAIT" or "ATTACK unitId"
+        if (roundType < 0)
+        {
+            if (MyHero == null)
                 Console.WriteLine("IRONMAN");
-                continue;
-            }
+            else
+                Console.WriteLine("VALKYRIE");
+            return;
+        }
 
-            Item affordableItem;
-            // Buy health potion            
-            if (MyHero.health / MyHero.maxHealth < 0.7)
-            {
-                affordableItem = _items.OrderByDescending(x => x.health).Where(x => x.isPotion && x.health > 0 && x.itemCost <= gold).FirstOrDefault();
-                if (affordableItem != null)
-                {
-                    Console.WriteLine($"BUY {affordableItem.itemName}");
-                    continue;
-                }
-            }
+        Console.WriteLine("ATTACK_NEAREST UNIT");
 
-            // Buying stuff
-            affordableItem = _items.OrderByDescending(x => x.damage).Where(x => x.itemCost <= gold).FirstOrDefault();
-            if (MyHero.itemsOwned < 3 && affordableItem != null)
+        Item affordableItem;
+        // Buy health potion            
+        if (MyHero.health / MyHero.maxHealth < 0.7)
+        {
+            affordableItem = _items.OrderByDescending(x => x.health).Where(x => x.isPotion && x.health > 0 && x.itemCost <= gold).FirstOrDefault();
+            if (affordableItem != null)
             {
                 Console.WriteLine($"BUY {affordableItem.itemName}");
-                continue;
+                return;
             }
-
-            var nearestUnits = _units.Where(x => !x.IsMine).OrderBy(x => MyHero.Distance(x));
-            Console.Error.WriteLine($"MyHero pos : {MyHero.X} {MyHero.Y}");
-            foreach (var unit in nearestUnits)
-            {
-                Console.Error.WriteLine($"Nearest unit pos : {unit.X} {unit.Y}");
-                Console.Error.WriteLine($"Nearest unit movement speed : {unit.movementSpeed}");
-                Console.Error.WriteLine($"Nearest unit attack range : {unit.attackRange}");
-                Console.Error.WriteLine($"Distance : {MyHero.Distance(unit)}");
-                Console.Error.WriteLine($"IsAtAttackDistance : {unit.IsAtAttackDistance(MyHero)}");
-            }
-
-            var nearestUnit = nearestUnits.FirstOrDefault(x => x.IsAtAttackDistance(MyHero));
-            if (nearestUnit != null)
-            {
-                Console.Error.WriteLine($"MyHero pos : {MyHero.X} {MyHero.Y}");
-                Console.Error.WriteLine($"Nearest unit pos : {nearestUnit.X} {nearestUnit.Y}");
-                Console.Error.WriteLine($"Nearest unit movement speed : {nearestUnit.movementSpeed}");
-                Console.Error.WriteLine($"Nearest unit attack range : {nearestUnit.attackRange}");
-                Console.Error.WriteLine($"Distance : {MyHero.Distance(nearestUnit)}");
-                Console.Error.WriteLine($"IsAtAttackDistance : {nearestUnit.IsAtAttackDistance(MyHero)}");
-                if (nearestUnit.X > MyHero.X)
-                    Console.WriteLine("MOVE 0 590");
-                else
-                    Console.WriteLine("MOVE 1920 590");
-                continue;
-            }
-
-            // Attack 
-            var readyToDieUnit = _units.Where(x => MyHero.IsAtAttackDistance(x) && x.health < MyHero.attackDamage && (!x.IsMine || x.GetType() == typeof(Unit))).FirstOrDefault();
-            if (readyToDieUnit != null)
-            {
-                Console.WriteLine($"ATTACK {readyToDieUnit.unitId}");
-                continue;
-            }
-
-            Console.WriteLine("ATTACK_NEAREST UNIT");
         }
+
+        // Buying stuff
+        affordableItem = _items.OrderByDescending(x => x.damage).Where(x => x.itemCost <= gold).FirstOrDefault();
+        if (MyHero.itemsOwned < 3 && affordableItem != null)
+        {
+            Console.WriteLine($"BUY {affordableItem.itemName}");
+            return;
+        }
+
+        var nearestUnits = _units.Where(x => !x.IsMine).OrderBy(x => MyHero.Distance(x));
+        Console.Error.WriteLine($"MyHero pos : {MyHero.X} {MyHero.Y}");
+        foreach (var unit in nearestUnits)
+        {
+            Console.Error.WriteLine($"Nearest unit pos : {unit.X} {unit.Y}");
+            Console.Error.WriteLine($"Nearest unit movement speed : {unit.movementSpeed}");
+            Console.Error.WriteLine($"Nearest unit attack range : {unit.attackRange}");
+            Console.Error.WriteLine($"Distance : {MyHero.Distance(unit)}");
+            Console.Error.WriteLine($"IsAtAttackDistance : {unit.IsAtAttackDistance(MyHero)}");
+        }
+
+        var nearestUnit = nearestUnits.FirstOrDefault(x => x.IsAtAttackDistance(MyHero));
+        if (nearestUnit != null)
+        {
+            Console.Error.WriteLine($"MyHero pos : {MyHero.X} {MyHero.Y}");
+            Console.Error.WriteLine($"Nearest unit pos : {nearestUnit.X} {nearestUnit.Y}");
+            Console.Error.WriteLine($"Nearest unit movement speed : {nearestUnit.movementSpeed}");
+            Console.Error.WriteLine($"Nearest unit attack range : {nearestUnit.attackRange}");
+            Console.Error.WriteLine($"Distance : {MyHero.Distance(nearestUnit)}");
+            Console.Error.WriteLine($"IsAtAttackDistance : {nearestUnit.IsAtAttackDistance(MyHero)}");
+            if (nearestUnit.X > MyHero.X)
+                Console.WriteLine("MOVE 0 590");
+            else
+                Console.WriteLine("MOVE 1920 590");
+            return;
+        }
+
+        // Attack 
+        var readyToDieUnit = _units.Where(x => MyHero.IsAtAttackDistance(x) && x.health < MyHero.attackDamage && (!x.IsMine || x.GetType() == typeof(Unit))).FirstOrDefault();
+        if (readyToDieUnit != null)
+        {
+            Console.WriteLine($"ATTACK {readyToDieUnit.unitId}");
+            return;
+        }
+
+        Console.WriteLine("ATTACK_NEAREST UNIT");
     }
 }
 
@@ -287,5 +346,17 @@ public class Item
         moveSpeed = int.Parse(inputs[7]); // keyword BOOTS is present if the most important item stat is moveSpeed
         manaRegeneration = int.Parse(inputs[8]);
         isPotion = int.Parse(inputs[9]) == 1; // 0 if it's not instantly consumed
+    }
+}
+
+public class Bush : Position
+{
+    public string entityType;
+    public int radius;
+
+    public Bush(string[] inputs) : base(int.Parse(inputs[1]), int.Parse(inputs[2]))
+    {
+        entityType = inputs[0]; // BUSH, from wood1 it can also be SPAWN
+        radius = int.Parse(inputs[3]);
     }
 }
