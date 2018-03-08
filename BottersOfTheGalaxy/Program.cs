@@ -177,8 +177,8 @@ namespace BottersOfTheGalaxy
 
     public class Position
     {
-        public double X;
-        public double Y;
+        public int X;
+        public int Y;
         public string XY => $"{X} {Y}";
 
         public Position(int x, int y)
@@ -195,6 +195,14 @@ namespace BottersOfTheGalaxy
         public int Distance(Unit unit)
         {
             return (int)Math.Sqrt(Sqr(unit.Y - Y) + Sqr(unit.X - X));
+        }
+
+        public Position Behind()
+        {
+            var ennemyTower = Player.Ennemy.Units.OfType<Tower>().Single();
+            var alliedTower = Player.Me.Units.OfType<Tower>().Single();
+            var moduloX = (ennemyTower.X > alliedTower.X) ? -1 : +1;
+            return new Position(X + moduloX, Y);
         }
 
         //public double Distance(Position p2)
@@ -246,6 +254,11 @@ namespace BottersOfTheGalaxy
         public bool IsAtAttackDistance(Unit unit)
         {
             return AttackRange >= Distance(unit);
+        }
+
+        public bool IsAtMoveAttackDistance(Unit unit, Position position)
+        {
+            return AttackRange >= position.Distance(unit);
         }
 
         public bool HasBeenHitLastTurn => _previousTurn != null && _previousTurn.Health > Health;
@@ -429,8 +442,8 @@ namespace BottersOfTheGalaxy
 
         public void BackToTower()
         {
-            if (XY != Team.Units.OfType<Tower>().Single().XY)
-                Output($"MOVE {Team.Units.OfType<Tower>().Single().XY}");
+            if (XY != Team.Units.OfType<Tower>().Single().Behind().XY)
+                Output($"MOVE {Team.Units.OfType<Tower>().Single().Behind().XY}");
         }
 
         public void Logic()
@@ -495,15 +508,29 @@ namespace BottersOfTheGalaxy
             else if (privateRyan.Distance(ennemyTower) < Distance(ennemyTower))
             {
                 // Hero is behind creeps
-                // TODO : Move attack
+                MoveOrAttack(privateRyan.Behind());
             }
             else
             {
-                var moduloX = (ennemyTower.X > alliedTower.X) ? -1 : +1;
-                // TODO : Move attack
-                Output($"MOVE {privateRyan.X + moduloX} {privateRyan.Y}");
+                MoveOrAttack(privateRyan.Behind());
             }
-            Output("ATTACK_NEAREST UNIT");
+
+            if (PercentLife < 0.3)
+            {
+                BackToTower();
+                Output("WAIT");
+            }
+            else
+                Output("ATTACK_NEAREST UNIT");
+        }
+
+        private void MoveOrAttack(Position position)
+        {
+            var attackableUnit = Player.Ennemy.Units.FirstOrDefault(x => IsAtMoveAttackDistance(x, position));
+            if (attackableUnit != null)
+                Output($"MOVE_ATTACK {position.XY} {attackableUnit.UnitId}");
+            else
+                Output($"MOVE {position.XY}");
         }
 
         public void Output(string data)
