@@ -14,15 +14,16 @@ namespace BottersOfTheGalaxy
         private static string _debugInitInput;
         private static string _debugInput;
         private static int _myTeam;
-        private static int _heroesChosen;
-        private static List<Hero> _myHeroes;
         private static readonly List<Bush> Bushes = new List<Bush>();
         private static readonly List<Item> Items = new List<Item>();
         private static List<Unit> _units;
-        private static int _gold;
-        private static int _enemyGold;
         private static int _roundType; // a positive value will show the number of heroes that await a command
         private static StringReader _stringReader;
+        private static List<Team> _teams;
+
+        public static Team Me;
+        public static Team Ennemy;
+        public static readonly Team Neutral = new Team(-1);
 
         private static string ReadLine(bool isInit = false)
         {
@@ -71,8 +72,6 @@ namespace BottersOfTheGalaxy
                     throw new ArgumentOutOfRangeException();
             }
 
-            if (unit.Team == _myTeam)
-                unit.IsMine = true;
             _units.Add(unit);
             return unit;
         }
@@ -96,13 +95,22 @@ namespace BottersOfTheGalaxy
                 Items.Add(new Item(inputs));
             }
 
+            Me = new Team(_myTeam);
+            Ennemy = new Team(_myTeam == 0 ? 1 : 0);
+            _teams = new List<Team>
+            {
+                Me,
+                Ennemy,
+                Neutral
+            };
+
             // game loop
             do
             {
                 _debugInput = string.Empty;
 
-                _gold = int.Parse(ReadLine());
-                _enemyGold = int.Parse(ReadLine());
+                Me.Gold = int.Parse(ReadLine());
+                Ennemy.Gold = int.Parse(ReadLine());
                 _roundType =
                     int.Parse(ReadLine()); // a positive value will show the number of heroes that await a command
 
@@ -116,7 +124,11 @@ namespace BottersOfTheGalaxy
                     inputs = ReadLine().Split(' ');
                     var unit = ReadUnits(inputs);
                     unit.PreviousTurn = previousUnits.SingleOrDefault(x => x.UnitId == unit.UnitId);
+
+                    var team = _teams.Single(x => x.TeamId == unit.TeamId);
+                    unit.Team = team;
                 }
+                _teams.ForEach(x => x.Units = _units.Where(u => u.Team == x).ToList());
 
                 Console.Error.WriteLine(_debugInitInput + _debugInput);
 
@@ -128,16 +140,20 @@ namespace BottersOfTheGalaxy
         {
             // If roundType has a negative value then you need to output a Hero name, such as "DEADPOOL" or "VALKYRIE".
             // Else you need to output roundType number of any valid action, such as "WAIT" or "ATTACK unitId"
-            if (_roundType < 0)
+
+            if (_roundType == -2)
             {
-                Console.WriteLine(_heroesChosen == 0 ? "IRONMAN" : "VALKYRIE");
-                _heroesChosen++;
+                Console.WriteLine("IRONMAN");
                 return;
             }
 
-            _myHeroes = new List<Hero>(_units.Where(x => x.GetType() == typeof(Hero) && x.IsMine).Cast<Hero>());
+            if (_roundType == -1)
+            {
+                Console.WriteLine("VALKYRIE");
+                return;
+            }
 
-            foreach (var myHero in _myHeroes)
+            foreach (var myHero in Me.Units.OfType<Hero>())
             {
                 HeroLogic(myHero);
             }
@@ -145,11 +161,14 @@ namespace BottersOfTheGalaxy
 
         public void HeroLogic(Hero hero)
         {
+            Console.Error.WriteLine($"--- {hero.HeroType} ---");
+
             Item affordableItem;
-            // Buy health potion            
+            // Buy health potion
+            // TODO : Improve : buy less expensive, do not buy potions that heals too much, is 0.7 a good factor ?
             if (hero.Health / hero.MaxHealth < 0.7)
             {
-                affordableItem = Items.OrderByDescending(x => x.Health).FirstOrDefault(x => x.IsPotion && x.Health > 0 && x.ItemCost <= _gold);
+                affordableItem = Items.OrderByDescending(x => x.Health).FirstOrDefault(x => x.IsPotion && x.Health > 0 && x.ItemCost <= hero.Team.Gold);
                 if (affordableItem != null)
                 {
                     Console.WriteLine($"BUY {affordableItem.ItemName}");
@@ -158,17 +177,18 @@ namespace BottersOfTheGalaxy
             }
 
             // Buying stuff
-            affordableItem = Items.OrderByDescending(x => x.Damage).FirstOrDefault(x => x.Damage > 0 && x.ItemCost <= _gold);
+            // TODO : Improve : Buy armor ? Sell and rebuy
+            affordableItem = Items.OrderByDescending(x => x.Damage).FirstOrDefault(x => x.Damage > 0 && x.ItemCost <= hero.Team.Gold);
             if (hero.ItemsOwned < 3 && affordableItem != null)
             {
                 Console.WriteLine($"BUY {affordableItem.ItemName}");
                 return;
             }
 
-            var nearestUnits = _units.Where(x => !x.IsMine).OrderBy(hero.Distance).ToList();
-            Console.Error.WriteLine($"Hero {hero.UnitId} pos : {hero.X} {hero.Y}");
-            Console.Error.WriteLine($"Hero {hero.UnitId} has aggro : {hero.HasAggro}");
-            Console.Error.WriteLine($"Hero {hero.UnitId} health : {hero.Health}, previous : {hero.PreviousTurn?.Health}");
+            var nearestUnits = Ennemy.Units.OrderBy(hero.Distance).ToList();
+            //Console.Error.WriteLine($"Hero {hero.UnitId} pos : {hero.X} {hero.Y}");
+            //Console.Error.WriteLine($"Hero {hero.UnitId} has been hit last turn : {hero.HasBeenHitLastTurn}");
+            //Console.Error.WriteLine($"Hero {hero.UnitId} health : {hero.Health}, previous : {hero.PreviousTurn?.Health}");
             //foreach (var unit in nearestUnits)
             //{
             //    Console.Error.WriteLine($"Nearest unit pos : {unit.X} {unit.Y}");
@@ -178,18 +198,24 @@ namespace BottersOfTheGalaxy
             //    Console.Error.WriteLine($"IsAtAttackDistance : {unit.IsAtAttackDistance(hero)}");
             //}
 
+            // TODO : Improve : Move out of range, not necessarily to tower. 
             var nearestUnit = nearestUnits.First();
-            if (hero.HasAggro && nearestUnit.IsAtAttackDistance(hero))
+            if (hero.HasBeenHitLastTurn && nearestUnit.IsAtAttackDistance(hero))
             {
-                Console.WriteLine(nearestUnit.X > hero.X ? "MOVE 0 590" : "MOVE 1920 590");
+                Console.WriteLine($"MOVE {Me.Units.OfType<Tower>().Single().XY}");
                 return;
             }
 
             // Attack 
-            var readyToDieUnit = _units.FirstOrDefault(x => hero.IsAtAttackDistance(x) && x.Health < hero.AttackDamage && (!x.IsMine || x.GetType() == typeof(Unit)));
-            if (readyToDieUnit != null)
+            var unitsToAttack = _units.Select(x => new UnitWithValue(x, x.GetValueForHero(hero))).Where(x => x.Value > 0).OrderByDescending(x => x.Value).ToList();
+            foreach(var unit in unitsToAttack)
             {
-                Console.WriteLine($"ATTACK {readyToDieUnit.UnitId}");
+                //Console.Error.WriteLine($"Unit {unit.Unit.UnitId} has value of {unit.Value}");
+            }
+            var unitToAttack = unitsToAttack.FirstOrDefault();
+            if (unitToAttack != null)
+            {
+                Console.WriteLine($"ATTACK {unitToAttack.Unit.UnitId}");
                 return;
             }
 
@@ -200,7 +226,7 @@ namespace BottersOfTheGalaxy
             }
             if (hero.HeroType == "IRONMAN" && hero.Mana >= 50 && hero.Distance(nearestUnit) < 500 && hero.CountDown2 == 0)
             {
-                Console.WriteLine($"FIREBALL {nearestUnit.X} {nearestUnit.Y}");
+                Console.WriteLine($"FIREBALL {nearestUnit.XY}");
                 return;
             }
 
@@ -208,10 +234,23 @@ namespace BottersOfTheGalaxy
         }
     }
 
+    public class UnitWithValue
+    {
+        public Unit Unit { get; } 
+        public double Value { get; } 
+
+        public UnitWithValue(Unit unit, double value)
+        {
+            Unit = unit;
+            Value = value;
+        }
+    }
+
     public class Position
     {
         public double X;
         public double Y;
+        public string XY => $"{X} {Y}";
 
         public Position(int x, int y)
         {
@@ -233,7 +272,7 @@ namespace BottersOfTheGalaxy
     public class Unit : Position
     {
         public int UnitId;
-        public int Team;
+        public int TeamId;
         public int AttackRange;
         public int Health;
         public int MaxHealth;
@@ -248,7 +287,7 @@ namespace BottersOfTheGalaxy
         public Unit(string[] inputs) : base(int.Parse(inputs[3]), int.Parse(inputs[4]))
         {
             UnitId = int.Parse(inputs[0]);
-            Team = int.Parse(inputs[1]);
+            TeamId = int.Parse(inputs[1]);
             AttackRange = int.Parse(inputs[5]);
             Health = int.Parse(inputs[6]);
             MaxHealth = int.Parse(inputs[7]);
@@ -259,14 +298,30 @@ namespace BottersOfTheGalaxy
             GoldValue = int.Parse(inputs[12]);
         }
 
-        public bool IsMine;
+        public Team Team;
 
         public bool IsAtAttackDistance(Unit unit)
         {
             return AttackRange >= Distance(unit);
         }
 
-        public bool HasAggro => PreviousTurn != null && PreviousTurn.Health > Health;
+        public bool HasBeenHitLastTurn => PreviousTurn != null && PreviousTurn.Health > Health;
+
+        public double GetValueForHero(Hero hero)
+        {
+            if (GetType() == typeof(Hero) && Team == Player.Me) return 0;
+            if (!hero.IsAtAttackDistance(this)) return 0;
+            double value = 0;
+            value += 1 - (Health / hero.AttackDamage); // Gives more value to wounded units
+            if (GetType() == typeof(Unit)) value += 1; 
+            if (GetType() == typeof(Hero)) value += 3; 
+            if (GetType() == typeof(Tower)) value += 5; 
+            if (Health / hero.AttackDamage < 1) value += 10; // Always try to kill units that can die this turn
+
+            if (Team == Player.Ennemy) value += 1; // Prefer ennemy
+
+            return value;
+        }
     }
 
     public class Hero : Unit
@@ -348,6 +403,19 @@ namespace BottersOfTheGalaxy
         {
             EntityType = inputs[0]; // BUSH, from wood1 it can also be SPAWN
             Radius = int.Parse(inputs[3]);
+        }
+    }
+
+    public class Team
+    {
+        public int TeamId;
+        public int Gold;
+
+        public List<Unit> Units = new List<Unit>();
+
+        public Team(int teamId)
+        {
+            TeamId = teamId;
         }
     }
 }
