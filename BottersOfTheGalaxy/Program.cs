@@ -468,7 +468,7 @@ namespace BottersOfTheGalaxy
 
             BuyStuff();
 
-            var nearestUnits = Player.Ennemy.Units.OrderBy(Distance).ToList();
+            //var nearestUnits = Player.Ennemy.Units.OrderBy(Distance).ToList();
             //Console.Error.WriteLine($"Hero {hero.UnitId} pos : {hero.X} {hero.Y}");
             //Console.Error.WriteLine($"Hero {hero.UnitId} has been hit last turn : {hero.HasBeenHitLastTurn}");
             //Console.Error.WriteLine($"Hero {hero.UnitId} health : {hero.Health}, previous : {hero.PreviousTurn?.Health}");
@@ -484,10 +484,10 @@ namespace BottersOfTheGalaxy
             // Attack 
             var unitsToAttack = Player.Units.Select(x => new UnitWithValue(x, x.GetValueForHero(this)))
                 .Where(x => x.Value > 0 && IsAtAttackDistance(x.Unit)).OrderByDescending(x => x.Value).ToList();
-            foreach (var unit in unitsToAttack)
-            {
-                //Console.Error.WriteLine($"Unit {unit.Unit.UnitId} has value of {unit.Value}");
-            }
+            //foreach (var unit in unitsToAttack)
+            //{
+            //    Console.Error.WriteLine($"Unit {unit.Unit.UnitId} has value of {unit.Value}");
+            //}
 
             var unitToAttack = unitsToAttack.FirstOrDefault()?.Unit;
             if (unitToAttack != null)
@@ -526,11 +526,13 @@ namespace BottersOfTheGalaxy
 
         private void MoveOrAttack(Position position)
         {
-            var attackableUnit = Player.Ennemy.Units.FirstOrDefault(x => IsAtMoveAttackDistance(x, position));
-            if (attackableUnit != null)
-                Output($"MOVE_ATTACK {position.XY} {attackableUnit.UnitId}");
-            else
-                Output($"MOVE {position.XY}");
+            var attackableUnit = Player.Ennemy.Units.Where(x => IsAtMoveAttackDistance(x, position))
+                .Select(x => new UnitWithValue(x, x.GetValueForHero(this))).Where(x => x.Value > 0)
+                .OrderByDescending(x => x.Value).FirstOrDefault();
+
+            Output(attackableUnit != null
+                ? $"MOVE_ATTACK {position.XY} {attackableUnit.Unit.UnitId}"
+                : $"MOVE {position.XY}");
         }
 
         public void Output(string data)
