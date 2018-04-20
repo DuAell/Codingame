@@ -76,6 +76,12 @@ namespace BottersOfTheGalaxy
             return unit;
         }
 
+        public static IEnumerable<UnitWithValue> GetUnitsWithValues(Hero hero)
+        {
+            return Units.Select(x => new UnitWithValue(x, x.GetValueForHero(hero)))
+                .Where(x => x.Value > 0).OrderByDescending(x => x.Value);
+        }
+
         private void LaunchGame()
         {
             string[] inputs;
@@ -144,6 +150,8 @@ namespace BottersOfTheGalaxy
             // If roundType has a negative value then you need to output a Hero name, such as "DEADPOOL" or "VALKYRIE".
             // Else you need to output roundType number of any valid action, such as "WAIT" or "ATTACK unitId"
 
+            CreateMap();
+
             if (_roundType == -2)
             {
                 Console.WriteLine("DEADPOOL");
@@ -156,11 +164,87 @@ namespace BottersOfTheGalaxy
                 return;
             }
 
+            UpdateMap();
+
             foreach (var myHero in Me.Units.OfType<Hero>())
             {
                 myHero.Logic();
             }
         }
+
+        public static Dictionary<Position, int> Map;
+
+        private static void CreateMap()
+        {
+            if (Map != null) return;
+
+            Map = new Dictionary<Position, int>(1921*751);
+            for (var x = 0; x <= 1920; x = x + 15)
+            {
+                for (var y = 0; y <= 750; y = y + 15)
+                {
+                    Map.Add(new Position(x, y), 0);
+                }
+            }
+        }
+
+        private static void UpdateMap()
+        {
+            foreach (var positionValue in Map.Where(x => x.Value != 0).ToList())
+            {
+                Map[positionValue.Key] = 0;
+            }
+
+            foreach (var unit in Ennemy.Units)
+            {
+                Map.Where(x => unit.IsAtMoveAttackDistance(x.Key, x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] + 1);
+            }
+            foreach (var unit in Ennemy.Units.OfType<Creep>())
+            {
+                Map.Where(x => unit.IsAtAttackDistance(x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] + 2);
+            }
+            foreach (var unit in Ennemy.Units.OfType<Hero>())
+            {
+                Map.Where(x => unit.IsAtAttackDistance(x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] + 5);
+            }
+            foreach (var unit in Ennemy.Units.OfType<Tower>())
+            {
+                Map.Where(x => unit.IsAtAttackDistance(x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] + 10);
+            }
+
+            foreach (var unit in Me.Units.OfType<Creep>())
+            {
+                Map.Where(x => unit.IsAtAttackDistance(x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] - 1);
+            }
+            foreach (var unit in Me.Units.OfType<Hero>())
+            {
+                Map.Where(x => unit.IsAtAttackDistance(x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] - 3);
+            }
+            foreach (var unit in Me.Units.OfType<Tower>())
+            {
+                Map.Where(x => unit.IsAtAttackDistance(x.Key)).ToList().ForEach(x => Map[x.Key] = Map[x.Key] - 5);
+            }
+
+            //foreach (var positionValue in Map.OrderBy(x => x.Value))
+            //{
+            //    Console.Error.WriteLine($"Position {positionValue.Key.XY} : {positionValue.Value}");
+            //}
+        }
+    }
+
+    public class PositionValue : Position
+    {
+        public PositionValue(Position position, int value) : base(position.X, position.Y)
+        {
+            Value = value;
+        }
+
+        public PositionValue(int x, int y, int value) : base(x, y)
+        {
+            Value = value;
+        }
+
+        public int Value { get; set; }
     }
 
     public class UnitWithValue
@@ -192,9 +276,9 @@ namespace BottersOfTheGalaxy
             return a * a;
         }
 
-        public int Distance(Unit unit)
+        public int Distance(Position position)
         {
-            return (int)Math.Sqrt(Sqr(unit.Y - Y) + Sqr(unit.X - X));
+            return (int)Math.Sqrt(Sqr(position.Y - Y) + Sqr(position.X - X));
         }
 
         public Position Behind()
@@ -214,6 +298,7 @@ namespace BottersOfTheGalaxy
     public abstract class Unit : Position
     {
         public int UnitId;
+        public string UnitType;
         public int TeamId;
         public int AttackRange;
         public int Health;
@@ -237,6 +322,7 @@ namespace BottersOfTheGalaxy
         protected Unit(string[] inputs) : base(int.Parse(inputs[3]), int.Parse(inputs[4]))
         {
             UnitId = int.Parse(inputs[0]);
+            UnitType = inputs[2];
             TeamId = int.Parse(inputs[1]);
             AttackRange = int.Parse(inputs[5]);
             Health = int.Parse(inputs[6]);
@@ -251,14 +337,27 @@ namespace BottersOfTheGalaxy
 
         public Team Team;
 
-        public bool IsAtAttackDistance(Unit unit)
+        public bool IsAtAttackDistance(Position target)
         {
-            return AttackRange >= Distance(unit);
+            return IsAtAttackRangeFromPosition(this, target);
         }
 
-        public bool IsAtMoveAttackDistance(Unit unit, Position position)
+        public bool IsAtAttackRangeFromPosition(Position position, Position target)
         {
-            return AttackRange >= position.Distance(unit);
+            return AttackRange >= position.Distance(target);
+        }
+
+        public bool HasTimeToMoveAndAttack(Position position)
+        {
+            int moveTime = 0;
+            if (MovementSpeed > 0)
+                moveTime = Distance(position) / MovementSpeed;
+            return moveTime + AttackTime <= 1.0;
+        }
+
+        public bool IsAtMoveAttackDistance(Position position, Position target)
+        {
+            return HasTimeToMoveAndAttack(position) && IsAtAttackRangeFromPosition(position, target);
         }
 
         public bool HasBeenHitLastTurn => _previousTurn != null && _previousTurn.Health > Health;
@@ -443,7 +542,16 @@ namespace BottersOfTheGalaxy
         public void BackToTower()
         {
             if (XY != Team.Units.OfType<Tower>().Single().Behind().XY)
-                Output($"MOVE {Team.Units.OfType<Tower>().Single().Behind().XY}");
+                MoveOrAttack(Team.Units.OfType<Tower>().Single().Behind());
+                //Output($"MOVE {Team.Units.OfType<Tower>().Single().Behind().XY}");
+        }
+
+        public void BackSafe()
+        {
+            var backPosition = Player.Map.Where(x => Distance(x.Key) < MovementSpeed).OrderBy(x => x.Value).FirstOrDefault();
+
+            MoveOrAttack(backPosition.Key);
+            //Output($"MOVE {backPosition.Key.XY};Value={backPosition.Value}");
         }
 
         public void Logic()
@@ -460,6 +568,10 @@ namespace BottersOfTheGalaxy
             var ennemyTower = Player.Ennemy.Units.OfType<Tower>().Single();
             if (ennemyTower.IsAtAttackDistance(this) && Team.Units.Count(x => ennemyTower.IsAtAttackDistance(x)) <= 1) // No allied units under tower, go back !
                 BackToTower();
+
+            // Ennemy can be at range this turn
+            if (Player.Ennemy.Units.OfType<Hero>().Any(x => x.IsAtMoveAttackDistance(this, this)))
+                BackSafe();
 
             BuyHealthPotion();
 
@@ -482,8 +594,7 @@ namespace BottersOfTheGalaxy
             //}
 
             // Attack 
-            var unitsToAttack = Player.Units.Select(x => new UnitWithValue(x, x.GetValueForHero(this)))
-                .Where(x => x.Value > 0 && IsAtAttackDistance(x.Unit)).OrderByDescending(x => x.Value).ToList();
+            var unitsToAttack = Player.GetUnitsWithValues(this).Where(x => x.Value > 0 && IsAtAttackDistance(x.Unit)).ToList();
             //foreach (var unit in unitsToAttack)
             //{
             //    Console.Error.WriteLine($"Unit {unit.Unit.UnitId} has value of {unit.Value}");
@@ -521,12 +632,16 @@ namespace BottersOfTheGalaxy
                 Output("WAIT");
             }
             else
-                Output("ATTACK_NEAREST UNIT");
+            {
+                // Nothing at distance, move towards closer ennemy
+                var unit = Player.Units.Where(x => x.Team != Team).OrderBy(Distance).First();
+                Output($"ATTACK_NEAREST {unit.UnitType}");
+            }
         }
 
         private void MoveOrAttack(Position position)
         {
-            var attackableUnit = Player.Ennemy.Units.Where(x => IsAtMoveAttackDistance(x, position))
+            var attackableUnit = Player.Ennemy.Units.Where(x => IsAtMoveAttackDistance(position, x))
                 .Select(x => new UnitWithValue(x, x.GetValueForHero(this))).Where(x => x.Value > 0)
                 .OrderByDescending(x => x.Value).FirstOrDefault();
 
@@ -534,6 +649,11 @@ namespace BottersOfTheGalaxy
                 ? $"MOVE_ATTACK {position.XY} {attackableUnit.Unit.UnitId}"
                 : $"MOVE {position.XY}");
         }
+
+        //private void OutOfEnnemyRangeAttack(Unit ennemy)
+        //{
+        //    ennemy.AttackRange
+        //}
 
         public void Output(string data)
         {
