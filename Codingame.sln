@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BottersOfTheGalaxy.Test", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeRoyale", "CodeRoyale\CodeRoyale.csproj", "{93D22684-0118-4DB5-A82B-DB2D4F409877}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeRoyale.Test", "CodeRoyale.Test\CodeRoyale.Test.csproj", "{DE27740F-4B21-49F8-AD80-915E7E36EB36}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{93D22684-0118-4DB5-A82B-DB2D4F409877}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{93D22684-0118-4DB5-A82B-DB2D4F409877}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{93D22684-0118-4DB5-A82B-DB2D4F409877}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE27740F-4B21-49F8-AD80-915E7E36EB36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE27740F-4B21-49F8-AD80-915E7E36EB36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE27740F-4B21-49F8-AD80-915E7E36EB36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE27740F-4B21-49F8-AD80-915E7E36EB36}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

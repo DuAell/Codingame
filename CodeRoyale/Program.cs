@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.IO;
 
 namespace CodeRoyale
 {
@@ -10,16 +11,7 @@ namespace CodeRoyale
         {
             var game = new Game();
 
-            game.Init();
-        }
-
-        public static string ConsoleEntryDebug { get; set; } = string.Empty;
-
-        public static string ConsoleReadLine()
-        {
-            var data = Console.ReadLine();
-            ConsoleEntryDebug += $@"{data}\n";
-            return data;
+            game.Launch();
         }
     }
 
@@ -29,17 +21,50 @@ namespace CodeRoyale
 
         public List<Site> Sites { get; set; } = new List<Site>();
 
-        public Gamer Me = new Gamer();
+        public Gamer Me = new Gamer(true);
 
-        public Gamer Opponent = new Gamer();
+        public Gamer Ennemy = new Gamer(false);
 
-        public void Init()
+        public string ConsoleInitDataDebug { get; set; } = string.Empty;
+        public string ConsoleLoopDataDebug { get; set; } = string.Empty;
+
+        public void Launch()
+        {
+            Init();
+        }
+
+        private StringReader _debugStringReader;
+        public void LaunchDebug(string data)
+        {
+            using (_debugStringReader = new StringReader(data))
+            {
+                Init();
+            }
+        }
+
+        private string ConsoleReadLine(bool isInit = false)
+        {
+            string data;
+            if (_debugStringReader != null)
+                data = _debugStringReader.ReadLine();
+            else
+            {
+                data = Console.ReadLine();
+                if (isInit)
+                    ConsoleInitDataDebug += $@"{data}\n";
+                else
+                    ConsoleLoopDataDebug += $@"{data}\n";
+            }
+            return data;
+        }
+
+        private void Init()
         {
             string[] inputs;
-            var numSites = int.Parse(Player.ConsoleReadLine());
+            var numSites = int.Parse(ConsoleReadLine(true));
             for (var i = 0; i < numSites; i++)
             {
-                inputs = Player.ConsoleReadLine().Split(' ');
+                inputs = ConsoleReadLine(true).Split(' ');
                 Sites.Add(new Site(inputs));
             }
 
@@ -48,31 +73,38 @@ namespace CodeRoyale
             {
                 Units = new List<Unit>();
 
-                inputs = Player.ConsoleReadLine().Split(' ');
-                Me.Update(inputs, this);
-
+                var data = ConsoleReadLine();
+                if (data == null) break;
+                var inputsGamer = data.Split(' ');
+                
                 for (var i = 0; i < numSites; i++)
                 {
-                    inputs = Player.ConsoleReadLine().Split(' ');
+                    inputs = ConsoleReadLine().Split(' ');
                     var siteId = int.Parse(inputs[0]);
+                    var site = Sites.Single(x => x.SiteId == siteId);
+                    Sites.Remove(site);
+                    Sites.Add(site.SwitchToCorrectType(inputs));
                     Sites.Single(x => x.SiteId == siteId).Update(inputs);
                 }
 
-                var numUnits = int.Parse(Player.ConsoleReadLine());
+                var numUnits = int.Parse(ConsoleReadLine());
                 for (var i = 0; i < numUnits; i++)
                 {
-                    Units.Add(Unit.Create(Player.ConsoleReadLine().Split(' ')));
+                    Units.Add(Unit.Create(ConsoleReadLine().Split(' ')));
                 }
 
-                Console.Error.WriteLine(Player.ConsoleEntryDebug);
+                Me.Update(inputsGamer, this);
+                Ennemy.Update(null, this);
+
+                Console.Error.WriteLine(ConsoleInitDataDebug + ConsoleLoopDataDebug);
 
                 GameLogic();
 
-                Player.ConsoleEntryDebug = string.Empty;
+                ConsoleLoopDataDebug = string.Empty;
             }
         }
 
-        public void GameLogic()
+        private void GameLogic()
         {
             // Write an action using Console.WriteLine()
             // To debug: Console.Error.WriteLine("Debug messages...");
@@ -84,36 +116,123 @@ namespace CodeRoyale
             TrainingLogic();
         }
 
-        public void QueenLogic()
+        private void QueenLogic()
         {
             if (Me.TouchedSite != null && Me.TouchedSite.Owner == Owner.None)
-                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-KNIGHT");
+                DecideWhatToBuild();
+            else if (Sites.Any(x => x.Owner == Owner.None))
+                Console.WriteLine($"MOVE {Sites.Where(x => x.Owner == Owner.None).OrderBy(x => x.Distance(Me.Queen)).First().XY}");
             else
                 Console.WriteLine("WAIT");
         }
 
-        public void TrainingLogic()
+        private void TrainingLogic()
         {
-            var mySites = Sites.Where(x => x.Owner == Owner.Me && x.TurnsLeftBeforeBuilding == 0).ToList();
+            var trainingSites = new List<Barracks>();
+            Barracks trainingSite;
+            do
+            {
+                trainingSite = DecideWhatToTrain();
+                if (trainingSite == null) continue;
 
-            var knightBarracks = mySites.Where(x => x.ProductionType == typeof(Knight)).Take(Me.Gold / Knight.Cost);
+                Me.Gold -= trainingSite.GetCost();
+                trainingSites.Add(trainingSite);
+            } while (trainingSite != null);
 
-            if (!knightBarracks.Any())
+            if (!trainingSites.Any())
                 Console.WriteLine("TRAIN");
             else
-                Console.WriteLine($"TRAIN {string.Join(" ", knightBarracks.Select(x => x.SiteId))}");
+                Console.WriteLine($"TRAIN {string.Join(" ", trainingSites.Select(x => x.SiteId))}");
+        }
+
+        private void DecideWhatToBuild()
+        {
+            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Knight))
+            {
+                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-KNIGHT");
+                return;
+            }
+
+            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Archer))
+            {
+                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-ARCHER");
+                return;
+            }
+
+            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Giant))
+            {
+                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-GIANT");
+                return;
+            }
+
+            if (Me.Sites.OfType<Mine>().Sum(x => x.ProductionRate) < 5 && Ennemy.Units.All(x => x.Distance(Me.Queen) > 50))
+            {
+                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} MINE");
+                return;
+            }
+
+            if (Sites.All(x => x.Owner != Owner.None))
+            {
+                var closestTower = Me.Sites.OfType<Tower>().OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
+                if (closestTower != null)
+                {
+                    Console.WriteLine($"BUILD {closestTower.SiteId} TOWER");
+                    return;
+                }
+            }
+            else
+            {
+                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} TOWER");
+                return;
+            }
+
+            Console.WriteLine("WAIT");
+        }
+
+        private Barracks DecideWhatToTrain()
+        {
+            //var needToProduceArcher = Units.Count(x => x is Knight && !x.IsAllied) > Units.Count(x => x is Archer && x.IsAllied) * 2;
+            var sitesReady = Me.Sites.OfType<Barracks>().Where(x => x.TurnsLeftBeforeBuilding == 0).ToList();
+            if (!sitesReady.Any()) return null;
+
+            if (sitesReady.Any(x => x.ProductionType == ProductionType.Archer) && Me.Gold > Archer.Cost && !Me.Units.OfType<Archer>().Any())
+                return sitesReady.Where(x => x.ProductionType == ProductionType.Archer).OrderBy(x => x.Distance(Me.Queen)).First();
+
+            if (sitesReady.Any(x => x.ProductionType == ProductionType.Knight) && Me.Gold > Knight.Cost && !Me.Units.OfType<Knight>().Any())
+                return sitesReady.Where(x => x.ProductionType == ProductionType.Knight).OrderBy(x => x.Distance(Ennemy.Queen)).First();
+
+            if (Ennemy.Sites.OfType<Tower>().Any() && sitesReady.Any(x => x.ProductionType == ProductionType.Giant) && Me.Gold > Giant.Cost && !Me.Units.OfType<Giant>().Any())
+                return sitesReady.Where(x => x.ProductionType == ProductionType.Giant).OrderBy(x => x.Distance(Ennemy.Sites.OfType<Tower>().First())).First();
+
+            return null;
         }
     }
 
     public class Gamer
     {
-        public int Gold { get; private set; }
+        private readonly bool _isMe;
+        public int Gold { get; set; }
         public Site TouchedSite { get; private set; }
+        public Queen Queen { get; set; }
+        public List<Site> Sites { get; private set; }
+        public List<Unit> Units { get; private set; }
+
+        public Gamer(bool isMe)
+        {
+            _isMe = isMe;
+        }
 
         public void Update(string[] inputs, Game game)
         {
-            Gold = int.Parse(inputs[0]);
-            TouchedSite = game.Sites.SingleOrDefault(x => x.SiteId == int.Parse(inputs[1])); // -1 if none
+            if (inputs != null)
+            {
+                Gold = int.Parse(inputs[0]);
+                TouchedSite = game.Sites.SingleOrDefault(x => x.SiteId == int.Parse(inputs[1])); // -1 if none
+            }
+
+            Queen = game.Units.OfType<Queen>().Single(x => x.IsAllied == _isMe);
+            Sites = game.Sites.Where(x => x.Owner == (_isMe ? Owner.Me : Owner.Ennemy)).ToList();
+            Units = game.Units.Where(x => x.IsAllied == _isMe).ToList();
         }
     }
 
@@ -140,12 +259,6 @@ namespace CodeRoyale
         }
     }
 
-    public enum StructureType
-    {
-        None,
-        Barracks
-    }
-
     public enum Owner
     {
         None,
@@ -155,9 +268,9 @@ namespace CodeRoyale
 
     public enum ProductionType
     {
-        None,
         Knight,
-        Archer
+        Archer,
+        Giant
     }
 
     public class Site : Position
@@ -166,13 +279,7 @@ namespace CodeRoyale
 
         public int Radius { get; }
 
-        public StructureType StructureType { get; private set; }
-
         public Owner Owner { get; private set; }
-
-        public int TurnsLeftBeforeBuilding { get; private set; }
-
-        public Type ProductionType { get; private set; }
 
         public Site(string[] inputs) : base(int.Parse(inputs[1]), int.Parse(inputs[2]))
         {
@@ -180,22 +287,37 @@ namespace CodeRoyale
             Radius = int.Parse(inputs[3]);
         }
 
-        public void Update(string[] inputs)
+        public Site(Site site) : base(site.X, site.Y)
         {
-            //int ignore1 = int.Parse(inputs[1]); // used in future leagues
-            //int ignore2 = int.Parse(inputs[2]); // used in future leagues
+            SiteId = site.SiteId;
+            Radius = site.Radius;
+        }
 
+        public Site SwitchToCorrectType(string[] inputs)
+        {
             switch (int.Parse(inputs[3]))
             {
                 case -1:
-                    StructureType = StructureType.None;
-                    break;
+                    if (GetType() == typeof(Site)) return this;
+                    return new Site(this);
+                case 0:
+                    if (GetType() == typeof(Mine)) return this;
+                    return new Mine(this);
+                case 1:
+                    if (GetType() == typeof(Tower)) return this;
+                    return new Tower(this);
                 case 2:
-                    StructureType = StructureType.Barracks;
-                    break;
+                    if (GetType() == typeof(Barracks)) return this;
+                    return new Barracks(this);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+        public virtual void Update(string[] inputs)
+        {
+            //int ignore1 = int.Parse(inputs[1]); // used in future leagues
+            //int ignore2 = int.Parse(inputs[2]); // used in future leagues
 
             switch (int.Parse(inputs[4]))
             {
@@ -207,23 +329,6 @@ namespace CodeRoyale
                     break;
                 case 1:
                     Owner = Owner.Ennemy;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            TurnsLeftBeforeBuilding = int.Parse(inputs[5]);
-
-            switch (int.Parse(inputs[6]))
-            {
-                case -1:
-                    ProductionType = null;
-                    break;
-                case 0:
-                    ProductionType = typeof(Knight);
-                    break;
-                case 1:
-                    ProductionType = typeof(Archer);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -253,6 +358,8 @@ namespace CodeRoyale
                     return new Knight(inputs);
                 case 1:
                     return new Archer(inputs);
+                case 2:
+                    return new Giant(inputs);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -282,5 +389,110 @@ namespace CodeRoyale
         }
 
         public static int Cost { get; } = 100;
+    }
+
+    public class Giant : Unit
+    {
+        public Giant(string[] inputs) : base(inputs)
+        {
+        }
+
+        public static int Cost { get; } = 140;
+    }
+
+    public class Barracks : Site
+    {
+        public int TurnsLeftBeforeBuilding { get; private set; }
+
+        public ProductionType ProductionType { get; private set; }
+
+        public Barracks(string[] inputs) : base(inputs)
+        {
+        }
+
+        public Barracks(Site site) : base(site)
+        {
+        }
+
+        public override void Update(string[] inputs)
+        {
+            base.Update(inputs);
+
+            TurnsLeftBeforeBuilding = int.Parse(inputs[5]);
+
+            switch (int.Parse(inputs[6]))
+            {
+                case 0:
+                    ProductionType = ProductionType.Knight;
+                    break;
+                case 1:
+                    ProductionType = ProductionType.Archer;
+                    break;
+                case 2:
+                    ProductionType = ProductionType.Giant;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+
+        public int GetCost()
+        {
+            switch (ProductionType)
+            {
+                case ProductionType.Knight:
+                    return Knight.Cost;
+                case ProductionType.Archer:
+                    return Archer.Cost;
+                case ProductionType.Giant:
+                    return Giant.Cost;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+    }
+
+    public class Tower : Site
+    {
+        public int Health { get; private set; }
+
+        public int AttackRange { get; private set; }
+
+        public Tower(string[] inputs) : base(inputs)
+        {
+        }
+
+        public Tower(Site site) : base(site)
+        {
+        }
+
+        public override void Update(string[] inputs)
+        {
+            base.Update(inputs);
+
+            Health = int.Parse(inputs[5]);
+
+            AttackRange = int.Parse(inputs[6]);
+        }
+    }
+
+    public class Mine : Site
+    {
+        public int ProductionRate { get; private set; }
+
+        public Mine(string[] inputs) : base(inputs)
+        {
+        }
+
+        public Mine(Site site) : base(site)
+        {
+        }
+
+        public override void Update(string[] inputs)
+        {
+            base.Update(inputs);
+
+            ProductionRate = int.Parse(inputs[5]);
+        }
     }
 }
