@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography.X509Certificates;
 
 namespace CodeRoyale
 {
@@ -27,6 +28,8 @@ namespace CodeRoyale
 
         public string ConsoleInitDataDebug { get; set; } = string.Empty;
         public string ConsoleLoopDataDebug { get; set; } = string.Empty;
+
+        public Position SpawnPoint { get; set; }
 
         public void Launch()
         {
@@ -98,6 +101,9 @@ namespace CodeRoyale
 
                 Console.Error.WriteLine(ConsoleInitDataDebug + ConsoleLoopDataDebug);
 
+                if (SpawnPoint == null)
+                    SpawnPoint = Me.Queen;
+
                 GameLogic();
 
                 ConsoleLoopDataDebug = string.Empty;
@@ -118,12 +124,13 @@ namespace CodeRoyale
 
         private void QueenLogic()
         {
-            if (Me.TouchedSite != null && Me.TouchedSite.Owner == Owner.None)
-                DecideWhatToBuild();
-            else if (Sites.Any(x => x.Owner == Owner.None))
-                Console.WriteLine($"MOVE {Sites.Where(x => x.Owner == Owner.None).OrderBy(x => x.Distance(Me.Queen)).First().XY}");
-            else
-                Console.WriteLine("WAIT");
+            DecideWhatToBuild();
+            //if (Me.TouchedSite != null && Me.TouchedSite.Owner == Owner.None)
+            //    DecideWhatToBuild();
+            //else if (Sites.Any(x => x.Owner == Owner.None))
+            //    Console.WriteLine($"MOVE {Sites.Where(x => x.Owner == Owner.None).OrderBy(x => x.Distance(Me.Queen)).First().XY}");
+            //else
+            //    Console.WriteLine("WAIT");
         }
 
         private void TrainingLogic()
@@ -132,7 +139,7 @@ namespace CodeRoyale
             Barracks trainingSite;
             do
             {
-                trainingSite = DecideWhatToTrain();
+                trainingSite = DecideWhatToTrain(trainingSites);
                 if (trainingSite == null) continue;
 
                 Me.Gold -= trainingSite.GetCost();
@@ -147,58 +154,123 @@ namespace CodeRoyale
 
         private void DecideWhatToBuild()
         {
-            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Knight))
-            {
-                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-KNIGHT");
-                return;
-            }
+            // Construire une barracks
+            // Construire des mines
+            // Construire une tour
+            // Dès qu'il y a des troupes ennemies, réparer la tour
 
-            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Archer))
-            {
-                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-ARCHER");
-                return;
-            }
-
-            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Giant))
-            {
-                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-GIANT");
-                return;
-            }
-
-            if (Me.Sites.OfType<Mine>().Sum(x => x.ProductionRate) < 5 && Ennemy.Units.All(x => x.Distance(Me.Queen) > 50))
+            if (Me.TouchedSite is Mine mine && mine.CanBeUpgraded())
             {
                 Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} MINE");
                 return;
             }
 
-            if (Sites.All(x => x.Owner != Owner.None))
+            var closestFreeSite = Sites.OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault(x => x.Owner == Owner.None);
+
+            if (Me.Sites.OfType<Mine>().Count() < 3 && closestFreeSite != null)
             {
-                var closestTower = Me.Sites.OfType<Tower>().OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
-                if (closestTower != null)
+                Console.WriteLine($"BUILD {closestFreeSite.SiteId} MINE");
+                return;
+            }
+
+            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Knight))
+            {
+                if (closestFreeSite != null)
                 {
-                    Console.WriteLine($"BUILD {closestTower.SiteId} TOWER");
+                    Console.WriteLine($"BUILD {closestFreeSite.SiteId} BARRACKS-KNIGHT");
                     return;
                 }
             }
-            else
+
+            // Si la reine est à portée d'une tour ennemie, on se casse !
+            if (Ennemy.Sites.OfType<Tower>().Any(x => x.AttackRange >= x.Distance(Me.Queen)))
             {
-                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} TOWER");
+                Console.WriteLine($"MOVE {SpawnPoint.XY}");
                 return;
             }
+
+            //if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Archer))
+            //{
+            //    Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-ARCHER");
+            //    return;
+            //}
+
+            //if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Giant))
+            //{
+            //    Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} BARRACKS-GIANT");
+            //    return;
+            //}
+
+            // Réparer les tours
+
+            // Attaque de la reine sur les casernes adverses
+
+            if (Ennemy.Sites.OfType<Barracks>().Any())
+            {
+                var target = Ennemy.Sites.OfType<Barracks>().First();
+
+                var closestFreeSiteInDirectionOfBarracks = Sites.Where(x => x.Owner == Owner.None && x.Distance(Me.Queen) < target.Distance(Me.Queen) && !x.IsAtAttackRange(Ennemy.Towers)).OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
+
+                if (closestFreeSiteInDirectionOfBarracks != null)
+                    Console.WriteLine($"BUILD {closestFreeSiteInDirectionOfBarracks.SiteId} TOWER");
+                else
+                    Console.WriteLine($"MOVE {Ennemy.Sites.OfType<Barracks>().First().XY}");
+                return;
+            }
+
+            if (Ennemy.Units.OfType<Knight>().Any(x => x.Distance(Me.Queen) < 800) && closestFreeSite != null && closestFreeSite.Distance(Me.Queen) < 500)
+            {
+                Console.WriteLine($"BUILD {closestFreeSite.SiteId} TOWER");
+                return;
+            }
+
+            if (Ennemy.Units.OfType<Knight>().Any(x => x.Distance(Me.Queen) < 2000))
+            {
+                var closestTowerSite = Sites.Where(x => 
+                        x.Owner == Owner.None || 
+                        (x is Tower tower && tower.Owner == Owner.Me && tower.CanBeUpgraded()))
+                    .OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
+                if (closestTowerSite != null)
+                {
+                    Console.WriteLine($"BUILD {closestTowerSite.SiteId} TOWER"); 
+                    return;
+                }
+            }
+
+            if (closestFreeSite != null)
+            {
+                Console.WriteLine($"BUILD {closestFreeSite.SiteId} MINE");
+                return;
+            }
+
+            //if (Sites.All(x => x.Owner != Owner.None))
+            //{
+            //    var closestTower = Me.Sites.OfType<Tower>().OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
+            //    if (closestTower != null)
+            //    {
+            //        Console.WriteLine($"BUILD {closestTower.SiteId} TOWER");
+            //        return;
+            //    }
+            //}
+            //else
+            //{
+            //    Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} TOWER");
+            //    return;
+            //}
 
             Console.WriteLine("WAIT");
         }
 
-        private Barracks DecideWhatToTrain()
+        private Barracks DecideWhatToTrain(List<Barracks> trainingSites)
         {
             //var needToProduceArcher = Units.Count(x => x is Knight && !x.IsAllied) > Units.Count(x => x is Archer && x.IsAllied) * 2;
-            var sitesReady = Me.Sites.OfType<Barracks>().Where(x => x.TurnsLeftBeforeBuilding == 0).ToList();
+            var sitesReady = Me.Sites.OfType<Barracks>().Where(x => !trainingSites.Contains(x) && x.TurnsLeftBeforeBuilding == 0).ToList();
             if (!sitesReady.Any()) return null;
 
             if (sitesReady.Any(x => x.ProductionType == ProductionType.Archer) && Me.Gold > Archer.Cost && !Me.Units.OfType<Archer>().Any())
                 return sitesReady.Where(x => x.ProductionType == ProductionType.Archer).OrderBy(x => x.Distance(Me.Queen)).First();
 
-            if (sitesReady.Any(x => x.ProductionType == ProductionType.Knight) && Me.Gold > Knight.Cost && !Me.Units.OfType<Knight>().Any())
+            if (sitesReady.Any(x => x.ProductionType == ProductionType.Knight) && Me.Gold > Knight.Cost)
                 return sitesReady.Where(x => x.ProductionType == ProductionType.Knight).OrderBy(x => x.Distance(Ennemy.Queen)).First();
 
             if (Ennemy.Sites.OfType<Tower>().Any() && sitesReady.Any(x => x.ProductionType == ProductionType.Giant) && Me.Gold > Giant.Cost && !Me.Units.OfType<Giant>().Any())
@@ -216,6 +288,7 @@ namespace CodeRoyale
         public Queen Queen { get; set; }
         public List<Site> Sites { get; private set; }
         public List<Unit> Units { get; private set; }
+        public List<Tower> Towers => Sites.OfType<Tower>().ToList();
 
         public Gamer(bool isMe)
         {
@@ -333,6 +406,11 @@ namespace CodeRoyale
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+        public bool IsAtAttackRange(IEnumerable<Tower> ennemyTowers)
+        {
+            return ennemyTowers.Any(x => x.AttackRange > x.Distance(this));
         }
     }
 
@@ -474,11 +552,18 @@ namespace CodeRoyale
 
             AttackRange = int.Parse(inputs[6]);
         }
+
+        public bool CanBeUpgraded()
+        {
+            return AttackRange <= 510;
+        }
     }
 
     public class Mine : Site
     {
         public int ProductionRate { get; private set; }
+        public int RemainingGold { get; private set; }
+        public int MaxProductionRate { get; private set; }
 
         public Mine(string[] inputs) : base(inputs)
         {
@@ -492,7 +577,14 @@ namespace CodeRoyale
         {
             base.Update(inputs);
 
+            RemainingGold = int.Parse(inputs[1]);
+            MaxProductionRate = int.Parse(inputs[2]);
             ProductionRate = int.Parse(inputs[5]);
+        }
+
+        public bool CanBeUpgraded()
+        {
+            return ProductionRate < MaxProductionRate && RemainingGold >= 100;
         }
     }
 }
