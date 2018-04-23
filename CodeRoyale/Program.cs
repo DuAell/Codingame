@@ -145,11 +145,12 @@ namespace CodeRoyale
             // Dès qu'il y a des troupes ennemies, réparer la tour
             var backupTower = Me.Towers.OrderBy(x => x.Distance(Me.SpawnPoint)).FirstOrDefault();
 
-            if (Me.Queen.IsAtEnnemyRange(Ennemy) && backupTower != null)
+            if (Me.Queen.IsAtEnnemyRange(Ennemy) && backupTower != null && backupTower.CanBeUpgraded())
             {
                 if (Me.TouchedSite is FreeSite)
                     return $"BUILD {Me.TouchedSite.SiteId} TOWER";
-                return $"BUILD {backupTower.SiteId} TOWER";
+                if (!(Me.TouchedSite == backupTower && !backupTower.CanBeUpgraded()))
+                    return $"BUILD {backupTower.SiteId} TOWER";
             }
 
             if (Me.TouchedSite is Mine mine && mine.Owner == Owner.Me && mine.CanBeUpgraded())
