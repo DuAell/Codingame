@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Collections.Generic;
 using System.IO;
-using System.Security.Cryptography.X509Certificates;
 
 namespace CodeRoyale
 {
@@ -18,18 +17,16 @@ namespace CodeRoyale
 
     public class Game
     {
-        public List<Unit> Units { get; set; }
+        public static List<Unit> Units { get; set; }
 
-        public List<Site> Sites { get; set; } = new List<Site>();
+        public static List<Site> Sites { get; set; } = new List<Site>();
 
-        public Gamer Me = new Gamer(true);
+        public Gamer Me = new Gamer(Owner.Me);
 
-        public Gamer Ennemy = new Gamer(false);
+        public Gamer Ennemy = new Gamer(Owner.Ennemy);
 
         public string ConsoleInitDataDebug { get; set; } = string.Empty;
         public string ConsoleLoopDataDebug { get; set; } = string.Empty;
-
-        public Position SpawnPoint { get; set; }
 
         public void Launch()
         {
@@ -68,7 +65,7 @@ namespace CodeRoyale
             for (var i = 0; i < numSites; i++)
             {
                 inputs = ConsoleReadLine(true).Split(' ');
-                Sites.Add(new Site(inputs));
+                Sites.Add(new FreeSite(inputs));
             }
 
             // game loop
@@ -101,9 +98,6 @@ namespace CodeRoyale
 
                 Console.Error.WriteLine(ConsoleInitDataDebug + ConsoleLoopDataDebug);
 
-                if (SpawnPoint == null)
-                    SpawnPoint = Me.Queen;
-
                 GameLogic();
 
                 ConsoleLoopDataDebug = string.Empty;
@@ -112,10 +106,6 @@ namespace CodeRoyale
 
         private void GameLogic()
         {
-            // Write an action using Console.WriteLine()
-            // To debug: Console.Error.WriteLine("Debug messages...");
-
-
             // First line: A valid queen action
             // Second line: A set of training instructions
             QueenLogic();
@@ -124,13 +114,8 @@ namespace CodeRoyale
 
         private void QueenLogic()
         {
-            DecideWhatToBuild();
-            //if (Me.TouchedSite != null && Me.TouchedSite.Owner == Owner.None)
-            //    DecideWhatToBuild();
-            //else if (Sites.Any(x => x.Owner == Owner.None))
-            //    Console.WriteLine($"MOVE {Sites.Where(x => x.Owner == Owner.None).OrderBy(x => x.Distance(Me.Queen)).First().XY}");
-            //else
-            //    Console.WriteLine("WAIT");
+            var result = DecideWhatToBuild();
+            Console.WriteLine(result);
         }
 
         private void TrainingLogic()
@@ -152,41 +137,60 @@ namespace CodeRoyale
                 Console.WriteLine($"TRAIN {string.Join(" ", trainingSites.Select(x => x.SiteId))}");
         }
 
-        private void DecideWhatToBuild()
+        private string DecideWhatToBuild()
         {
             // Construire une barracks
             // Construire des mines
             // Construire une tour
             // Dès qu'il y a des troupes ennemies, réparer la tour
+            var backupTower = Me.Towers.OrderBy(x => x.Distance(Me.SpawnPoint)).FirstOrDefault();
 
-            if (Me.TouchedSite is Mine mine && mine.CanBeUpgraded())
+            if (Me.Queen.IsAtEnnemyRange(Ennemy) && backupTower != null)
             {
-                Console.WriteLine($"BUILD {Me.TouchedSite.SiteId} MINE");
-                return;
+                if (Me.TouchedSite is FreeSite)
+                    return $"BUILD {Me.TouchedSite.SiteId} TOWER";
+                return $"BUILD {backupTower.SiteId} TOWER";
             }
+
+            if (Me.TouchedSite is Mine mine && mine.Owner == Owner.Me && mine.CanBeUpgraded())
+            {
+                return $"BUILD {Me.TouchedSite.SiteId} MINE";
+            }
+
+            var closestFreeSiteForMine =
+                Sites.Where(x =>
+                    x.Owner == Owner.None && x.Distance(Ennemy.SpawnPoint) > 1000 && (x.RemainingGold == null || x.RemainingGold > 20) &&
+                    !x.IsAtEnnemyRange(Ennemy)).OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
 
             var closestFreeSite = Sites.OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault(x => x.Owner == Owner.None);
 
-            if (Me.Sites.OfType<Mine>().Count() < 3 && closestFreeSite != null)
-            {
-                Console.WriteLine($"BUILD {closestFreeSite.SiteId} MINE");
-                return;
-            }
-
-            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Knight))
+            if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Knight) && !Me.Queen.IsAtEnnemyRange(Ennemy))
             {
                 if (closestFreeSite != null)
                 {
-                    Console.WriteLine($"BUILD {closestFreeSite.SiteId} BARRACKS-KNIGHT");
-                    return;
+                    return $"BUILD {closestFreeSite.SiteId} BARRACKS-KNIGHT";
                 }
+            }
+
+            if (!Ennemy.Units.OfType<Knight>().Any() && closestFreeSiteForMine != null)
+            {
+                return $"BUILD {closestFreeSiteForMine.SiteId} MINE";
+            }
+
+            if (!Me.Towers.Any() && closestFreeSite != null)
+                return $"BUILD {closestFreeSite.SiteId} TOWER";
+
+            var closestFreeSiteForBarracks = Sites.Where(x => x.Owner == Owner.None && x.RemainingGold == 0 && !x.IsAtEnnemyRange(Ennemy))
+                .OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
+            if (closestFreeSiteForBarracks != null)
+            {
+                return $"BUILD {closestFreeSiteForBarracks.SiteId} BARRACKS-KNIGHT";
             }
 
             // Si la reine est à portée d'une tour ennemie, on se casse !
             if (Ennemy.Sites.OfType<Tower>().Any(x => x.AttackRange >= x.Distance(Me.Queen)))
             {
-                Console.WriteLine($"MOVE {SpawnPoint.XY}");
-                return;
+                return $"MOVE {Me.SpawnPoint.XY}";
             }
 
             //if (Me.Sites.OfType<Barracks>().All(x => x.ProductionType != ProductionType.Archer))
@@ -203,46 +207,35 @@ namespace CodeRoyale
 
             // Réparer les tours
 
-            // Attaque de la reine sur les casernes adverses
-
-            if (Ennemy.Sites.OfType<Barracks>().Any())
+            // Attaque de la reine sur les casernes adverses sans défense
+            var ennemyBarracksWithoutDefense =
+                Ennemy.Sites.OfType<Barracks>().FirstOrDefault(x => !x.IsAtEnnemyRange(Ennemy));
+            if (ennemyBarracksWithoutDefense != null) 
             {
-                var target = Ennemy.Sites.OfType<Barracks>().First();
-
-                var closestFreeSiteInDirectionOfBarracks = Sites.Where(x => x.Owner == Owner.None && x.Distance(Me.Queen) < target.Distance(Me.Queen) && !x.IsAtAttackRange(Ennemy.Towers)).OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
-
-                if (closestFreeSiteInDirectionOfBarracks != null)
-                    Console.WriteLine($"BUILD {closestFreeSiteInDirectionOfBarracks.SiteId} TOWER");
-                else
-                    Console.WriteLine($"MOVE {Ennemy.Sites.OfType<Barracks>().First().XY}");
-                return;
+                return $"MOVE {ennemyBarracksWithoutDefense.XY}";
             }
 
-            if (Ennemy.Units.OfType<Knight>().Any(x => x.Distance(Me.Queen) < 800) && closestFreeSite != null && closestFreeSite.Distance(Me.Queen) < 500)
-            {
-                Console.WriteLine($"BUILD {closestFreeSite.SiteId} TOWER");
-                return;
-            }
+            //// Build tower urgently
+            //if (Ennemy.Units.OfType<Knight>().Any(x => x.Distance(Me.Queen) < 800) && closestFreeSite != null && closestFreeSite.Distance(Me.Queen) < 500)
+            //{
+            //    return $"BUILD {closestFreeSite.SiteId} TOWER";
+            //}
 
-            if (Ennemy.Units.OfType<Knight>().Any(x => x.Distance(Me.Queen) < 2000))
-            {
-                var closestTowerSite = Sites.Where(x => 
-                        x.Owner == Owner.None || 
-                        (x is Tower tower && tower.Owner == Owner.Me && tower.CanBeUpgraded()))
-                    .OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
-                if (closestTowerSite != null)
-                {
-                    Console.WriteLine($"BUILD {closestTowerSite.SiteId} TOWER"); 
-                    return;
-                }
-            }
+            // Repair tower
+            var towerToRepair = Me.Towers.Where(x => x.NeedRepair()).OrderBy(x => x.Health).FirstOrDefault();
+            if (towerToRepair != null)
+                return $"BUILD {towerToRepair.SiteId} TOWER";
 
-            if (closestFreeSite != null)
-            {
-                Console.WriteLine($"BUILD {closestFreeSite.SiteId} MINE");
-                return;
-            }
+            if (Me.TouchedSite is Tower tower && tower.CanBeUpgraded())
+                return $"BUILD {Me.TouchedSite.SiteId} TOWER";
 
+            var closestFreeSiteToEnnemySpawnPoint = Sites.Where(x => x.Owner == Owner.None && !x.IsAtEnnemyRange(Ennemy))
+                .OrderBy(x => x.Distance(Ennemy.SpawnPoint)).FirstOrDefault();
+            if (closestFreeSiteToEnnemySpawnPoint != null)
+            {
+                return $"BUILD {closestFreeSiteToEnnemySpawnPoint.SiteId} TOWER";
+            }
+                
             //if (Sites.All(x => x.Owner != Owner.None))
             //{
             //    var closestTower = Me.Sites.OfType<Tower>().OrderBy(x => x.Distance(Me.Queen)).FirstOrDefault();
@@ -258,7 +251,11 @@ namespace CodeRoyale
             //    return;
             //}
 
-            Console.WriteLine("WAIT");
+            // Don't know what to do, back to tower.
+            if (backupTower != null)
+                return $"BUILD {backupTower.SiteId} TOWER";
+
+            return "WAIT";
         }
 
         private Barracks DecideWhatToTrain(List<Barracks> trainingSites)
@@ -282,7 +279,7 @@ namespace CodeRoyale
 
     public class Gamer
     {
-        private readonly bool _isMe;
+        private readonly Owner _owner;
         public int Gold { get; set; }
         public Site TouchedSite { get; private set; }
         public Queen Queen { get; set; }
@@ -290,9 +287,11 @@ namespace CodeRoyale
         public List<Unit> Units { get; private set; }
         public List<Tower> Towers => Sites.OfType<Tower>().ToList();
 
-        public Gamer(bool isMe)
+        public Position SpawnPoint { get; set; }
+
+        public Gamer(Owner owner)
         {
-            _isMe = isMe;
+            _owner = owner;
         }
 
         public void Update(string[] inputs, Game game)
@@ -300,12 +299,15 @@ namespace CodeRoyale
             if (inputs != null)
             {
                 Gold = int.Parse(inputs[0]);
-                TouchedSite = game.Sites.SingleOrDefault(x => x.SiteId == int.Parse(inputs[1])); // -1 if none
+                TouchedSite = Game.Sites.SingleOrDefault(x => x.SiteId == int.Parse(inputs[1])); // -1 if none
             }
 
-            Queen = game.Units.OfType<Queen>().Single(x => x.IsAllied == _isMe);
-            Sites = game.Sites.Where(x => x.Owner == (_isMe ? Owner.Me : Owner.Ennemy)).ToList();
-            Units = game.Units.Where(x => x.IsAllied == _isMe).ToList();
+            Queen = Game.Units.OfType<Queen>().Single(x => x.Owner == _owner);
+            Sites = Game.Sites.Where(x => x.Owner == _owner).ToList();
+            Units = Game.Units.Where(x => x.Owner == _owner).ToList();
+
+            if (SpawnPoint == null)
+                SpawnPoint = Queen;
         }
     }
 
@@ -346,21 +348,49 @@ namespace CodeRoyale
         Giant
     }
 
-    public class Site : Position
+    public abstract class BaseUnit : Position
+    {
+        public Owner Owner { get; protected set; }
+
+        public abstract int Radius { get; protected set; }
+
+        public abstract int AttackRange { get; set; }
+
+        public abstract int Speed { get; }
+
+        protected BaseUnit(int x, int y) : base(x, y)
+        {
+        }
+
+        public abstract bool CanAttack(BaseUnit unit);
+
+        public bool IsAtAttackRange(BaseUnit unit)
+        {
+            return Distance(unit) < AttackRange;
+        }
+
+        public bool IsAtEnnemyRange(Gamer ennemy)
+        {
+            // Contact = distance - rayon1 - rayon2 < 5
+
+            return ennemy.Towers.Any(x => x.AttackRange > (x.Distance(this) - Radius - x.Radius)) ||
+                   ennemy.Units.Where(x => x.CanAttack(this)).Any(x => x.AttackRange + x.Speed > (x.Distance(this) - Radius - x.Radius));
+        }
+    }
+
+    public abstract class Site : BaseUnit
     {
         public int SiteId { get; }
+        public int? RemainingGold { get; private set; }
+        public int? MaxProductionRate { get; private set; }
 
-        public int Radius { get; }
-
-        public Owner Owner { get; private set; }
-
-        public Site(string[] inputs) : base(int.Parse(inputs[1]), int.Parse(inputs[2]))
+        protected Site(string[] inputs) : base(int.Parse(inputs[1]), int.Parse(inputs[2]))
         {
             SiteId = int.Parse(inputs[0]);
             Radius = int.Parse(inputs[3]);
         }
 
-        public Site(Site site) : base(site.X, site.Y)
+        protected Site(Site site) : base(site.X, site.Y)
         {
             SiteId = site.SiteId;
             Radius = site.Radius;
@@ -372,7 +402,7 @@ namespace CodeRoyale
             {
                 case -1:
                     if (GetType() == typeof(Site)) return this;
-                    return new Site(this);
+                    return new FreeSite(this);
                 case 0:
                     if (GetType() == typeof(Mine)) return this;
                     return new Mine(this);
@@ -391,6 +421,14 @@ namespace CodeRoyale
         {
             //int ignore1 = int.Parse(inputs[1]); // used in future leagues
             //int ignore2 = int.Parse(inputs[2]); // used in future leagues
+
+            var remainingGold = int.Parse(inputs[1]);
+            if (remainingGold != -1)
+                RemainingGold = remainingGold;
+
+            var maxProductionRate = int.Parse(inputs[2]);
+            if (maxProductionRate != -1)
+                MaxProductionRate = maxProductionRate;
 
             switch (int.Parse(inputs[4]))
             {
@@ -412,17 +450,30 @@ namespace CodeRoyale
         {
             return ennemyTowers.Any(x => x.AttackRange > x.Distance(this));
         }
+
+        public abstract override bool CanAttack(BaseUnit unit);
+
+        public override int Speed { get; } = 0;
     }
 
-    public abstract class Unit : Position
+    public abstract class Unit : BaseUnit
     {
         protected Unit(string[] inputs) : base(int.Parse(inputs[0]), int.Parse(inputs[1]))
         {
-            IsAllied = int.Parse(inputs[2]) == 0;
+            switch (int.Parse(inputs[2]))
+            {
+                case 0:
+                    Owner = Owner.Me;
+                    break;
+                case 1:
+                    Owner = Owner.Ennemy;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
             Health = int.Parse(inputs[4]);
         }
-
-        public bool IsAllied { get; }
 
         public int Health { get; }
 
@@ -449,6 +500,18 @@ namespace CodeRoyale
         public Queen(string[] inputs) : base(inputs)
         {
         }
+
+        public override int Speed { get; } = 60;
+        public override int Radius { get; protected set; } = 30;
+        public override int AttackRange { get; set; } = 0;
+
+        public override bool CanAttack(BaseUnit unit)
+        {
+            if (unit.Owner == Owner) return false;
+            if (unit is Mine) return true;
+            if (unit is Barracks) return true;
+            return false;
+        }
     }
 
     public class Knight : Unit
@@ -458,6 +521,16 @@ namespace CodeRoyale
         }
 
         public static int Cost { get; } = 80;
+        public override int Speed { get; } = 100;
+        public override int Radius { get; protected set; } = 20;
+        public override int AttackRange { get; set; } = 0;
+        public override bool CanAttack(BaseUnit unit)
+        {
+            if (unit.Owner == Owner) return false;
+            if (unit is Queen) return true;
+            if (unit is Mine) return true;
+            return false;
+        }
     }
 
     public class Archer : Unit
@@ -467,6 +540,16 @@ namespace CodeRoyale
         }
 
         public static int Cost { get; } = 100;
+        public override int Speed { get; } = 75;
+        public override int Radius { get; protected set; } = 25;
+        public override int AttackRange { get; set; } = 200;
+        public override bool CanAttack(BaseUnit unit)
+        {
+            if (unit.Owner == Owner) return false;
+            if (unit is Unit) return true;
+            if (unit is Mine) return true;
+            return false;
+        }
     }
 
     public class Giant : Unit
@@ -476,6 +559,37 @@ namespace CodeRoyale
         }
 
         public static int Cost { get; } = 140;
+        public override int Speed { get; } = 50;
+        public override int Radius { get; protected set; } = 40;
+        public override int AttackRange { get; set; } = 0;
+
+        public override bool CanAttack(BaseUnit unit)
+        {
+            if (unit.Owner == Owner) return false;
+            if (unit is Tower) return true;
+            if (unit is Mine) return true;
+            return false;
+        }
+    }
+
+    public class FreeSite : Site
+    {
+        
+        public FreeSite(string[] inputs) : base(inputs)
+        {
+        }
+
+        public FreeSite(Site site) : base(site)
+        {
+        }
+
+        public override int Radius { get; protected set; } = 50; // Au pif
+        public override int AttackRange { get; set; } = 0;
+
+        public override bool CanAttack(BaseUnit unit)
+        {
+            return false;
+        }
     }
 
     public class Barracks : Site
@@ -514,6 +628,14 @@ namespace CodeRoyale
             }
         }
 
+        public override int Radius { get; protected set; } = 50; // Au pif
+        public override int AttackRange { get; set; } = 0;
+
+        public override bool CanAttack(BaseUnit unit)
+        {
+            return false;
+        }
+
         public int GetCost()
         {
             switch (ProductionType)
@@ -534,7 +656,6 @@ namespace CodeRoyale
     {
         public int Health { get; private set; }
 
-        public int AttackRange { get; private set; }
 
         public Tower(string[] inputs) : base(inputs)
         {
@@ -553,18 +674,40 @@ namespace CodeRoyale
             AttackRange = int.Parse(inputs[6]);
         }
 
+        public override int Radius { get; protected set; } = 80; // Au pif
+        public override int AttackRange { get; set; }
+
+        public override bool CanAttack(BaseUnit unit)
+        {
+            if (unit.Owner == Owner) return false;
+
+            if (unit is Queen)
+            {
+                var ennemyUnits = Game.Units.Where(x => x.Owner == unit.Owner);
+                return ennemyUnits.Any(x => x.IsAtAttackRange(this) && !(x is Queen));
+            }
+
+            if (unit is Knight || unit is Archer || unit is Giant) return true;
+
+            return false;
+
+        }
+
         public bool CanBeUpgraded()
         {
-            return AttackRange <= 510;
+            return Health < 750;
+        }
+
+        public bool NeedRepair()
+        {
+            return Health < 50;
         }
     }
 
     public class Mine : Site
     {
         public int ProductionRate { get; private set; }
-        public int RemainingGold { get; private set; }
-        public int MaxProductionRate { get; private set; }
-
+        
         public Mine(string[] inputs) : base(inputs)
         {
         }
@@ -576,14 +719,20 @@ namespace CodeRoyale
         public override void Update(string[] inputs)
         {
             base.Update(inputs);
-
-            RemainingGold = int.Parse(inputs[1]);
-            MaxProductionRate = int.Parse(inputs[2]);
             ProductionRate = int.Parse(inputs[5]);
+        }
+
+        public override int Radius { get; protected set; } = 50; // Au pif
+        public override int AttackRange { get; set; }
+
+        public override bool CanAttack(BaseUnit unit)
+        {
+            return false;
         }
 
         public bool CanBeUpgraded()
         {
+            if (MaxProductionRate == null) return true;
             return ProductionRate < MaxProductionRate && RemainingGold >= 100;
         }
     }
