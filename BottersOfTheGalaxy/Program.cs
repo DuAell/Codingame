@@ -154,7 +154,7 @@ namespace BottersOfTheGalaxy
 
             if (_roundType == -2)
             {
-                Console.WriteLine("DEADPOOL");
+                Console.WriteLine("IRONMAN");
                 return;
             }
 
@@ -168,7 +168,8 @@ namespace BottersOfTheGalaxy
 
             foreach (var myHero in Me.Units.OfType<Hero>())
             {
-                Console.WriteLine(myHero.Logic());
+                var result = myHero.Logic();
+                Console.WriteLine(result);
             }
         }
 
@@ -179,9 +180,9 @@ namespace BottersOfTheGalaxy
             if (Map != null) return;
 
             Map = new Dictionary<Position, int>(1921*751);
-            for (var x = 0; x <= 1920; x = x + 15)
+            for (var x = 0; x <= 1920; x = x + 20)
             {
-                for (var y = 0; y <= 750; y = y + 15)
+                for (var y = 0; y <= 750; y = y + 20)
                 {
                     Map.Add(new Position(x, y), 0);
                 }
@@ -422,6 +423,11 @@ namespace BottersOfTheGalaxy
 
         public List<Item> Items = new List<Item>();
 
+        public virtual IEnumerable<Item> GetItemsOfInterest()
+        {
+            return Player.Items.Where(x => x.ItemName.Contains("Blade")).OrderByDescending(x => x.Damage);
+        }
+
         public override void SetPreviousTurn(Unit previousTurn)
         {
             base.SetPreviousTurn(previousTurn);
@@ -470,6 +476,7 @@ namespace BottersOfTheGalaxy
 
             // We may have to sell stuff to buy it
             if (Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))) return null; // Do not buy if ennemy too close
+            if (Player.Neutral.Units.Any(x => x.IsAtAttackDistance(this))) return null; // Do not buy if ennemy too close
 
             var lessExpensivePotion = potions.OrderBy(x => x.ItemCost).FirstOrDefault();
             var lessExpensiveStuff = Items.OrderBy(x => x.ItemCost).FirstOrDefault();
@@ -489,8 +496,7 @@ namespace BottersOfTheGalaxy
             if (Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))) return null; // Do not buy if engaged in combat
 
             // TODO : Improve : Buy armor ? Sell and rebuy
-            var affordableItem = Player.Items.OrderByDescending(x => x.Damage)
-                .FirstOrDefault(x => x.Damage > 0 && x.ItemCost <= Team.Gold);
+            var affordableItem = GetItemsOfInterest().FirstOrDefault(x => x.ItemCost <= Team.Gold);
             if (ItemsOwned < 3 && affordableItem != null && PercentLife > 0.5)
             {
                 return Buy(affordableItem);
@@ -511,7 +517,7 @@ namespace BottersOfTheGalaxy
 
         public string Sell(Item item)
         {
-            Team.Gold += item.ItemCost;
+            Team.Gold += item.ItemCost / 2;
 
             if (!item.IsPotion)
                 Items.Remove(item);
@@ -551,7 +557,7 @@ namespace BottersOfTheGalaxy
         public string BackToBush()
         {
             var safeBushes =
-                Player.Bushes.Where(x => !Player.Ennemy.Units.OfType<Tower>().Any(t => t.IsAtAttackDistance(x)) && !Player.Neutral.Units.Any(g => g.IsAtAttackDistance(x))).ToList();
+                Player.Bushes.Where(x => !Player.Ennemy.Units.OfType<Tower>().Any(t => t.IsAtAttackDistance(x)) && !Player.Neutral.Units.Any(g => g.Distance(x) < 300)).ToList();
             var bush = safeBushes.OrderBy(x => x.Distance(this)).First();
 
             var ennemyHeroes = Player.Ennemy.Units.OfType<Hero>().Where(IsAtAttackDistance).ToList();
@@ -788,6 +794,12 @@ namespace BottersOfTheGalaxy
         {
         }
 
+        public override IEnumerable<Item> GetItemsOfInterest()
+        {
+            // TODO : How are named ManaRegen or MaxMana items ?
+            return Player.Items.Where(x => x.ItemName.Contains("Mana")).OrderByDescending(x => x.MaxMana);
+        }
+
         public override bool CanCastSpell()
         {
             return Player.Ennemy.Units.Any(x => Distance(x) < 900 && CountDown2 <= 0 && Mana >= 50);
@@ -795,7 +807,19 @@ namespace BottersOfTheGalaxy
 
         public override IEnumerable<Unit> GetSpellTargets()
         {
-            return Player.Ennemy.Units.OrderBy(Distance).ToList();
+            var groots = Player.Neutral.Units.Where(x => x.Distance(this) < 900).OrderBy(x => x.Distance(Player.Ennemy.Units.OfType<Tower>().Single())).ToList();
+
+            var results = new List<Unit>();
+            foreach (var groot in groots)
+            {
+                if (Player.Ennemy.Units.OfType<Hero>().Any(x => x.Distance(groot) < 300))
+                    results.Add(groot);
+            }
+
+            if (results.Any())
+                return results;
+
+           return Player.Ennemy.Units.OrderBy(Distance).ToList();
         }
 
         public override string CastSpell()
