@@ -427,7 +427,7 @@ namespace BottersOfTheGalaxy
         // Contains() is too much time-consuming, use it after another filter
         public virtual IEnumerable<Item> GetItemsOfInterest()
         {
-            return Player.Items.Where(x => x.Damage > 5).OrderByDescending(x => x.Damage);
+            return Player.Items.Where(x => !x.IsPotion && x.Damage > 5).OrderByDescending(x => x.Damage);
         }
 
         public override void SetPreviousTurn(Unit previousTurn)
@@ -621,6 +621,9 @@ namespace BottersOfTheGalaxy
             //    Console.Error.WriteLine($"IsAtAttackDistance : {unit.IsAtAttackDistance(hero)}");
             //}
 
+            var castSpell = CastSpell();
+            if (castSpell != null) return castSpell;
+
             // Attack 
             var unitsToAttack = Player.GetUnitsWithValues(this).Where(x => x.Value > 0 && IsAtAttackDistance(x.Unit)).ToList();
             //foreach (var unit in unitsToAttack)
@@ -633,9 +636,6 @@ namespace BottersOfTheGalaxy
             {
                 return $"ATTACK {unitToAttack.UnitId}";
             }
-
-            var castSpell = CastSpell();
-            if (castSpell != null) return castSpell;
 
             // TODO : Stay behind creeps
             var alliedTower = Team.Units.OfType<Tower>().Single();
@@ -803,7 +803,7 @@ namespace BottersOfTheGalaxy
         public override IEnumerable<Item> GetItemsOfInterest()
         {
             // TODO : How are named ManaRegen or MaxMana items ?
-            return Player.Items.Where(x => x.MaxMana > 20).OrderByDescending(x => x.MaxMana);
+            return Player.Items.Where(x => !x.IsPotion && x.MaxMana > 20).OrderByDescending(x => x.MaxMana);
         }
 
         public override bool CanCastSpell()
