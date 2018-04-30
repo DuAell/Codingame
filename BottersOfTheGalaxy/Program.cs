@@ -169,6 +169,7 @@ namespace BottersOfTheGalaxy
             foreach (var myHero in Me.Units.OfType<Hero>())
             {
                 var result = myHero.Logic();
+                Console.Error.WriteLine($"{myHero.HeroType}: {result}");
                 Console.WriteLine(result);
             }
         }
@@ -423,9 +424,10 @@ namespace BottersOfTheGalaxy
 
         public List<Item> Items = new List<Item>();
 
+        // Contains() is too much time-consuming, use it after another filter
         public virtual IEnumerable<Item> GetItemsOfInterest()
         {
-            return Player.Items.Where(x => x.ItemName.Contains("Blade")).OrderByDescending(x => x.Damage);
+            return Player.Items.Where(x => x.Damage > 5).OrderByDescending(x => x.Damage);
         }
 
         public override void SetPreviousTurn(Unit previousTurn)
@@ -482,7 +484,7 @@ namespace BottersOfTheGalaxy
             var lessExpensiveStuff = Items.OrderBy(x => x.ItemCost).FirstOrDefault();
             if (lessExpensivePotion != null && lessExpensiveStuff != null && PercentLife < 0.3)
             {
-                if (lessExpensivePotion.ItemCost <= lessExpensiveStuff.ItemCost)
+                if (lessExpensivePotion.ItemCost <= lessExpensiveStuff.ItemCost / 2)
                 {
                     return Sell(lessExpensiveStuff);
                 }
@@ -560,12 +562,13 @@ namespace BottersOfTheGalaxy
                 Player.Bushes.Where(x => !Player.Ennemy.Units.OfType<Tower>().Any(t => t.IsAtAttackDistance(x)) && !Player.Neutral.Units.Any(g => g.Distance(x) < 300)).ToList();
             var bush = safeBushes.OrderBy(x => x.Distance(this)).First();
 
-            var ennemyHeroes = Player.Ennemy.Units.OfType<Hero>().Where(IsAtAttackDistance).ToList();
+            // TODO : attack ennemy hero if hidden. Doesn't work, cause my hero to go out of bush to charger an ennemy hero and be killed
+            var ennemyHeroes = Player.Ennemy.Units.OfType<Hero>().Where(x => IsAtAttackDistance(x) && x.Distance(bush) < bush.Radius).ToList();
 
             if (ennemyHeroes.Any())
                 return MoveOrAttack(ennemyHeroes.First());
 
-            return $"MOVE {bush.XY}";
+            return $"MOVE {bush.XY}; HIDE";
         }
 
         public string BackSafe()
@@ -577,26 +580,29 @@ namespace BottersOfTheGalaxy
 
         public string Logic()
         {
-            var sellStuffBeforeDying = SellStuffBeforeDying();
-            if (sellStuffBeforeDying != null) return sellStuffBeforeDying;
-
             // TODO : Improve : Move out of range, not necessarily to tower. 
             //Console.Error.WriteLine($"Has been hit : {HasBeenHitLastTurn}, close ennemy units : {Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))}");
             if (HasBeenHitLastTurn && Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this)))
-                return BackToTower();
+                return BackToBush();
 
             var ennemyTower = Player.Ennemy.Units.OfType<Tower>().Single();
             if (ennemyTower.IsAtAttackDistance(this) && Team.Units.Count(x => ennemyTower.IsAtAttackDistance(x)) <= 1) // No allied units under tower, go back !
-                return BackToTower();
+                return BackToBush();
 
             // Ennemy can be at range this turn
-            if (Player.Ennemy.Units.OfType<Hero>().Any(x => x.IsAtMoveAttackDistance(this, this)))
-                return BackSafe();
+            if (Player.Ennemy.Units.OfType<Hero>().Any(x => x.IsAtMoveAttackDistance(this, this)) && IsVisible)
+                return BackToBush();
 
-            var buyHealthPotion = BuyHealthPotion();
-            if (buyHealthPotion != null) return buyHealthPotion;
+            if (!IsVisible)
+            {
+                var sellStuffBeforeDying = SellStuffBeforeDying();
+                if (sellStuffBeforeDying != null) return sellStuffBeforeDying;
 
-            if (PercentLife < 0.3)
+                var buyHealthPotion = BuyHealthPotion();
+                if (buyHealthPotion != null) return buyHealthPotion;
+            }
+
+            if (PercentLife < 0.3 && Player.Ennemy.Units.OfType<Hero>().Any(x => x.Distance(this) < 400))
                 return BackToBush();
 
             var buyStuff = BuyStuff();
@@ -797,12 +803,12 @@ namespace BottersOfTheGalaxy
         public override IEnumerable<Item> GetItemsOfInterest()
         {
             // TODO : How are named ManaRegen or MaxMana items ?
-            return Player.Items.Where(x => x.ItemName.Contains("Mana")).OrderByDescending(x => x.MaxMana);
+            return Player.Items.Where(x => x.MaxMana > 20).OrderByDescending(x => x.MaxMana);
         }
 
         public override bool CanCastSpell()
         {
-            return Player.Ennemy.Units.Any(x => Distance(x) < 900 && CountDown2 <= 0 && Mana >= 50);
+            return Player.Ennemy.Units.Any(x => Distance(x) < 900 && CountDown2 <= 0 && Mana >= 60);
         }
 
         public override IEnumerable<Unit> GetSpellTargets()
