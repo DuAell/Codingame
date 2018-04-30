@@ -168,7 +168,7 @@ namespace BottersOfTheGalaxy
 
             foreach (var myHero in Me.Units.OfType<Hero>())
             {
-                myHero.Logic();
+                Console.WriteLine(myHero.Logic());
             }
         }
 
@@ -410,8 +410,6 @@ namespace BottersOfTheGalaxy
 
     public abstract class Hero : Unit
     {
-        private bool _outputAlreadySent;
-
         public int CountDown1;
         public int CountDown2;
         public int CountDown3;
@@ -446,17 +444,19 @@ namespace BottersOfTheGalaxy
             AttackTime = 0.1;
         }
 
-        private void SellStuffBeforeDying()
+        private string SellStuffBeforeDying()
         {
             if (PercentLife < 0.2)
             {
                 var item = Items.OrderByDescending(x => x.ItemCost).FirstOrDefault();
                 if (item != null)
-                    Sell(item);
+                    return Sell(item);
             }
+
+            return null;
         }
 
-        public void BuyHealthPotion()
+        public string BuyHealthPotion()
         {
             var potions = Player.Items
                 .Where(x => x.IsPotion && x.Health > 0 && x.Health <= (MaxHealth - Health))
@@ -465,63 +465,65 @@ namespace BottersOfTheGalaxy
             var affordableItem = potions.OrderByDescending(x => x.Health).FirstOrDefault(x => x.ItemCost <= Team.Gold);
             if (affordableItem != null && PercentLife < 0.5)
             {
-                Buy(affordableItem);
+                return Buy(affordableItem);
             }
-            else
-            {
-                // We may have to sell stuff to buy it
-                if (Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))) return; // Do not buy if ennemy too close
 
-                var lessExpensivePotion = potions.OrderBy(x => x.ItemCost).FirstOrDefault();
-                var lessExpensiveStuff = Items.OrderBy(x => x.ItemCost).FirstOrDefault();
-                if (lessExpensivePotion != null && lessExpensiveStuff != null && PercentLife < 0.3)
+            // We may have to sell stuff to buy it
+            if (Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))) return null; // Do not buy if ennemy too close
+
+            var lessExpensivePotion = potions.OrderBy(x => x.ItemCost).FirstOrDefault();
+            var lessExpensiveStuff = Items.OrderBy(x => x.ItemCost).FirstOrDefault();
+            if (lessExpensivePotion != null && lessExpensiveStuff != null && PercentLife < 0.3)
+            {
+                if (lessExpensivePotion.ItemCost <= lessExpensiveStuff.ItemCost)
                 {
-                    if (lessExpensivePotion.ItemCost <= lessExpensiveStuff.ItemCost)
-                    {
-                        Sell(lessExpensiveStuff);
-                    }
+                    return Sell(lessExpensiveStuff);
                 }
             }
+
+            return null;
         }
 
-        public void BuyStuff()
+        public string BuyStuff()
         {
-            if (Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))) return; // Do not buy if engaged in combat
+            if (Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))) return null; // Do not buy if engaged in combat
 
             // TODO : Improve : Buy armor ? Sell and rebuy
             var affordableItem = Player.Items.OrderByDescending(x => x.Damage)
                 .FirstOrDefault(x => x.Damage > 0 && x.ItemCost <= Team.Gold);
             if (ItemsOwned < 3 && affordableItem != null && PercentLife > 0.5)
             {
-                Buy(affordableItem);
+                return Buy(affordableItem);
             }
+
+            return null;
         }
 
-        public void Buy(Item item)
+        public string Buy(Item item)
         {
-            Output($"BUY {item.ItemName}");
-
             Team.Gold -= item.ItemCost;
 
             if (!item.IsPotion)
                 Items.Add(item);
+
+            return $"BUY {item.ItemName}";
         }
 
-        public void Sell(Item item)
+        public string Sell(Item item)
         {
-            Output($"SELL {item.ItemName}");
-
             Team.Gold += item.ItemCost;
 
             if (!item.IsPotion)
                 Items.Remove(item);
+
+            return $"SELL {item.ItemName}";
         }
 
         public abstract bool CanCastSpell();
 
         public abstract IEnumerable<Unit> GetSpellTargets();
 
-        public abstract void CastSpell();
+        public abstract string CastSpell();
 
         public static Hero GetHero(string[] inputs)
         {
@@ -539,59 +541,60 @@ namespace BottersOfTheGalaxy
             }
         }
 
-        public void BackToTower()
+        public string BackToTower()
         {
             if (XY != Team.Units.OfType<Tower>().Single().Behind().XY)
-                MoveOrAttack(Team.Units.OfType<Tower>().Single().Behind());
-                //Output($"MOVE {Team.Units.OfType<Tower>().Single().Behind().XY}");
+                return MoveOrAttack(Team.Units.OfType<Tower>().Single().Behind());
+            return "WAIT";
         }
 
-        public void BackToBush()
+        public string BackToBush()
         {
-            var bush = Player.Bushes.Where(x => !Player.Ennemy.Units.OfType<Tower>().Any(t => t.IsAtAttackDistance(x)))
-                .OrderBy(x => x.Distance(this)).First();
+            var safeBushes =
+                Player.Bushes.Where(x => !Player.Ennemy.Units.OfType<Tower>().Any(t => t.IsAtAttackDistance(x)) && !Player.Neutral.Units.Any(g => g.IsAtAttackDistance(x))).ToList();
+            var bush = safeBushes.OrderBy(x => x.Distance(this)).First();
 
             var ennemyHeroes = Player.Ennemy.Units.OfType<Hero>().Where(IsAtAttackDistance).ToList();
 
             if (ennemyHeroes.Any())
-                MoveOrAttack(ennemyHeroes.First());
+                return MoveOrAttack(ennemyHeroes.First());
 
-            Output($"MOVE {bush.XY}");
+            return $"MOVE {bush.XY}";
         }
 
-        public void BackSafe()
+        public string BackSafe()
         {
             var backPosition = Player.Map.Where(x => Distance(x.Key) < MovementSpeed).OrderBy(x => x.Value).FirstOrDefault();
 
-            MoveOrAttack(backPosition.Key);
-            //Output($"MOVE {backPosition.Key.XY};Value={backPosition.Value}");
+            return MoveOrAttack(backPosition.Key);
         }
 
-        public void Logic()
+        public string Logic()
         {
-            _outputAlreadySent = false;
-
-            SellStuffBeforeDying();
+            var sellStuffBeforeDying = SellStuffBeforeDying();
+            if (sellStuffBeforeDying != null) return sellStuffBeforeDying;
 
             // TODO : Improve : Move out of range, not necessarily to tower. 
             //Console.Error.WriteLine($"Has been hit : {HasBeenHitLastTurn}, close ennemy units : {Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this))}");
             if (HasBeenHitLastTurn && Player.Ennemy.Units.Any(x => x.IsAtAttackDistance(this)))
-                BackToTower();
+                return BackToTower();
 
             var ennemyTower = Player.Ennemy.Units.OfType<Tower>().Single();
             if (ennemyTower.IsAtAttackDistance(this) && Team.Units.Count(x => ennemyTower.IsAtAttackDistance(x)) <= 1) // No allied units under tower, go back !
-                BackToTower();
+                return BackToTower();
 
             // Ennemy can be at range this turn
             if (Player.Ennemy.Units.OfType<Hero>().Any(x => x.IsAtMoveAttackDistance(this, this)))
-                BackSafe();
+                return BackSafe();
 
-            BuyHealthPotion();
+            var buyHealthPotion = BuyHealthPotion();
+            if (buyHealthPotion != null) return buyHealthPotion;
 
             if (PercentLife < 0.3)
-                BackToBush();
+                return BackToBush();
 
-            BuyStuff();
+            var buyStuff = BuyStuff();
+            if (buyStuff != null) return buyStuff;
 
             //var nearestUnits = Player.Ennemy.Units.OrderBy(Distance).ToList();
             //Console.Error.WriteLine($"Hero {hero.UnitId} pos : {hero.X} {hero.Y}");
@@ -616,10 +619,11 @@ namespace BottersOfTheGalaxy
             var unitToAttack = unitsToAttack.FirstOrDefault()?.Unit;
             if (unitToAttack != null)
             {
-                Output($"ATTACK {unitToAttack.UnitId}");
+                return $"ATTACK {unitToAttack.UnitId}";
             }
 
-            CastSpell();
+            var castSpell = CastSpell();
+            if (castSpell != null) return castSpell;
 
             // TODO : Stay behind creeps
             var alliedTower = Team.Units.OfType<Tower>().Single();
@@ -627,53 +631,36 @@ namespace BottersOfTheGalaxy
             if (privateRyan == null)
             {
                 // No more allied creeps
-                BackToTower();
+                return BackToTower();
             }
-            else if (privateRyan.Distance(ennemyTower) < Distance(ennemyTower))
+
+            if (privateRyan.Distance(ennemyTower) < Distance(ennemyTower))
             {
                 // Hero is behind creeps
-                MoveOrAttack(privateRyan.Behind());
+                return MoveOrAttack(privateRyan.Behind());
             }
-            else
-            {
-                MoveOrAttack(privateRyan.Behind());
-            }
+
+            return MoveOrAttack(privateRyan.Behind());
 
             if (PercentLife < 0.3)
             {
-                BackToTower();
-                Output("WAIT");
+                return BackToTower();
             }
-            else
-            {
-                // Nothing at distance, move towards closer ennemy
-                var unit = Player.Units.Where(x => x.Team != Team).OrderBy(Distance).First();
-                Output($"ATTACK_NEAREST {unit.UnitType}");
-            }
+
+            // Nothing at distance, move towards closer ennemy
+            var unit = Player.Units.Where(x => x.Team != Team).OrderBy(Distance).First();
+            return $"ATTACK_NEAREST {unit.UnitType}";
         }
 
-        private void MoveOrAttack(Position position)
+        private string MoveOrAttack(Position position)
         {
             var attackableUnit = Player.Ennemy.Units.Where(x => IsAtMoveAttackDistance(position, x))
                 .Select(x => new UnitWithValue(x, x.GetValueForHero(this))).Where(x => x.Value > 0)
                 .OrderByDescending(x => x.Value).FirstOrDefault();
 
-            Output(attackableUnit != null
+            return attackableUnit != null
                 ? $"MOVE_ATTACK {position.XY} {attackableUnit.Unit.UnitId}"
-                : $"MOVE {position.XY}");
-        }
-
-        //private void OutOfEnnemyRangeAttack(Unit ennemy)
-        //{
-        //    ennemy.AttackRange
-        //}
-
-        public void Output(string data)
-        {
-            if (_outputAlreadySent) return;
-            Console.Error.WriteLine($"{HeroType} : {data}");
-            Console.WriteLine(data);
-            _outputAlreadySent = true;
+                : $"MOVE {position.XY}";
         }
     }
 
@@ -761,8 +748,9 @@ namespace BottersOfTheGalaxy
             return new List<Hero>();
         }
 
-        public override void CastSpell()
+        public override string CastSpell()
         {
+            return null;
         }
     }
 
@@ -782,13 +770,15 @@ namespace BottersOfTheGalaxy
             return Player.Ennemy.Units.OfType<Hero>().Where(x => Distance(x) <= 155).OrderBy(x => x.Health).ToList();
         }
 
-        public override void CastSpell()
+        public override string CastSpell()
         {
             var closestEnnemyHero = GetSpellTargets().FirstOrDefault();
             if (CanCastSpell() && closestEnnemyHero != null)
             {
-                Output($"SPEARFLIP {closestEnnemyHero.UnitId}");
+                return $"SPEARFLIP {closestEnnemyHero.UnitId}";
             }
+
+            return null;
         }
     }
 
@@ -808,13 +798,15 @@ namespace BottersOfTheGalaxy
             return Player.Ennemy.Units.OrderBy(Distance).ToList();
         }
 
-        public override void CastSpell()
+        public override string CastSpell()
         {
             var nearestUnit = GetSpellTargets().First();
             if (CanCastSpell() && nearestUnit != null)
             {
-                Output($"FIREBALL {nearestUnit.XY}");
+                return $"FIREBALL {nearestUnit.XY}";
             }
+
+            return null;
         }
     }
 
@@ -834,13 +826,15 @@ namespace BottersOfTheGalaxy
             return Player.Ennemy.Units.OfType<Hero>().Where(x => Distance(x) < 200).OrderBy(x => x.Health);
         }
 
-        public override void CastSpell()
+        public override string CastSpell()
         {
             var nearestUnit = GetSpellTargets().FirstOrDefault();
             if (CanCastSpell() && nearestUnit != null)
             {
-                Output($"WIRE {nearestUnit.XY}");
+                return $"WIRE {nearestUnit.XY}";
             }
+
+            return null;
         }
     }
 }
