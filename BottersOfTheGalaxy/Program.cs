@@ -14,7 +14,7 @@ namespace BottersOfTheGalaxy
         private static string _debugInitInput;
         private static string _debugInput;
         private static int _myTeam;
-        private static readonly List<Bush> Bushes = new List<Bush>();
+        public static readonly List<Bush> Bushes = new List<Bush>();
         public static readonly List<Item> Items = new List<Item>();
         public static List<Unit> Units;
         private static int _roundType; // a positive value will show the number of heroes that await a command
@@ -546,6 +546,19 @@ namespace BottersOfTheGalaxy
                 //Output($"MOVE {Team.Units.OfType<Tower>().Single().Behind().XY}");
         }
 
+        public void BackToBush()
+        {
+            var bush = Player.Bushes.Where(x => !Player.Ennemy.Units.OfType<Tower>().Any(t => t.IsAtAttackDistance(x)))
+                .OrderBy(x => x.Distance(this)).First();
+
+            var ennemyHeroes = Player.Ennemy.Units.OfType<Hero>().Where(IsAtAttackDistance).ToList();
+
+            if (ennemyHeroes.Any())
+                MoveOrAttack(ennemyHeroes.First());
+
+            Output($"MOVE {bush.XY}");
+        }
+
         public void BackSafe()
         {
             var backPosition = Player.Map.Where(x => Distance(x.Key) < MovementSpeed).OrderBy(x => x.Value).FirstOrDefault();
@@ -576,7 +589,7 @@ namespace BottersOfTheGalaxy
             BuyHealthPotion();
 
             if (PercentLife < 0.3)
-                BackToTower();
+                BackToBush();
 
             BuyStuff();
 
