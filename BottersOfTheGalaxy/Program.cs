@@ -654,14 +654,14 @@ namespace BottersOfTheGalaxy
 
             return MoveOrAttack(privateRyan.Behind());
 
-            if (PercentLife < 0.3)
-            {
-                return BackToTower();
-            }
+            //if (PercentLife < 0.3)
+            //{
+            //    return BackToTower();
+            //}
 
-            // Nothing at distance, move towards closer ennemy
-            var unit = Player.Units.Where(x => x.Team != Team).OrderBy(Distance).First();
-            return $"ATTACK_NEAREST {unit.UnitType}";
+            //// Nothing at distance, move towards closer ennemy
+            //var unit = Player.Units.Where(x => x.Team != Team).OrderBy(Distance).First();
+            //return $"ATTACK_NEAREST {unit.UnitType}";
         }
 
         private string MoveOrAttack(Position position)
