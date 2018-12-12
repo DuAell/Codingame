@@ -70,7 +70,7 @@ namespace XmasRush
         {
             var uncheckedTiles = new List<Tile> { origin };
             var checkedTiles = new List<Tile>();
-            var checkedPaths = new List<Path>();
+            var bestPaths = new List<Path>();
             var cost = 0;
 
             while (uncheckedTiles.Count > 0)
@@ -93,20 +93,26 @@ namespace XmasRush
 
                     path.Cost = cost;
 
-                    checkedPaths.Add(path);
+                    var otherPathForSameDestination = bestPaths.SingleOrDefault(x => x.Destination == path.Destination);
+                    if (otherPathForSameDestination == null)
+                        bestPaths.Add(path);
+                    else if (otherPathForSameDestination.Score < path.Score || otherPathForSameDestination.Cost > path.Cost)
+                    {
+                        bestPaths.Remove(otherPathForSameDestination);
+                        bestPaths.Add(path);
+                    }
+                                       
                     if (!checkedTiles.Contains(path.Destination))
                         uncheckedTiles.Add(path.Destination);
                 }                
             }
 
-            return checkedPaths;
+            return bestPaths;
         }
 
         public List<Path> GetPath(Tile origin, Tile destination, TurnData turnData)
         {
             var availablePaths = GetAvailablePaths(origin, turnData);
-            //var orderedPaths = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).Select(x => new TileWithDistance { XY = x.Destination.XY, Distance = x.Destination.ManhattanDistance(destination) });
-            //var closest = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).FirstOrDefault();
             var bestPath = availablePaths.OrderByDescending(x => x.Score).ThenBy(x => x.Cost).FirstOrDefault();
 
             if (bestPath == null || bestPath.Destination == origin)
