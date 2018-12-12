@@ -86,6 +86,9 @@ namespace XmasRush
                 {
                     var questTiles = turnData.GetQuests(turnData.Me).Select(x => x.Item.Tile).Where(x => x != null);
                     path.Score = questTiles.Any(x => x == path.Destination) ? 100 : 0;
+
+                    // Prefer paths where we have more possible exits
+                    path.Score += path.Destination.GetNextPositions(turnData.Tiles).Count();
                     //path.Score += 100 - questTiles.Min(x => path.Destination.ManhattanDistance(x));
 
                     path.Cost = cost;
