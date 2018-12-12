@@ -89,10 +89,18 @@ namespace XmasRush
             return checkedPaths;
         }
 
+        public class TileWithDistance
+        {
+            public string XY { get; set; }
+            public int Distance { get; set; }
+        }
+
+
         public List<Path> GetPath(Tile origin, Tile destination, TurnData turnData)
         {
             var availablePaths = GetAvailablePaths(origin, turnData);
-            var closest = availablePaths.OrderBy(x => x.Destination.Distance(destination)).FirstOrDefault();
+            //var orderedPaths = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).Select(x => new TileWithDistance { XY = x.Destination.XY, Distance = x.Destination.ManhattanDistance(destination) });
+            var closest = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).FirstOrDefault();
             if (closest == null || closest.Destination == origin)
                 return new List<Path>();
 
@@ -163,9 +171,14 @@ namespace XmasRush
             return a * a;
         }
 
-        public int Distance(Position position)
+        public int EuclidianDistance(Position position)
         {
             return (int)Math.Sqrt(Sqr(position.Y - Y) + Sqr(position.X - X));
+        }
+
+        public int ManhattanDistance(Position position)
+        {
+            return Math.Abs(Math.Abs(position.X - X) + Math.Abs(position.Y - Y));
         }
     }
 
