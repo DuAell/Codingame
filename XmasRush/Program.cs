@@ -50,8 +50,8 @@ namespace XmasRush
 
         public void Move(TurnData turnData)
         {
-            var myPosition = turnData.Tiles.Single(x => x.XY == turnData.Me.XY);
-            var goalPosition = turnData.Tiles.SingleOrDefault(x => x.XY == turnData.Me.Quests.First().Item.XY);
+            var myPosition = turnData.Me.Tile;
+            var goalPosition = turnData.GetQuests(turnData.Me).First().Item.Tile;
 
             if (goalPosition == null || myPosition == goalPosition)
             {
@@ -71,44 +71,49 @@ namespace XmasRush
             var uncheckedTiles = new List<Tile> { origin };
             var checkedTiles = new List<Tile>();
             var checkedPaths = new List<Path>();
+            var cost = 0;
 
             while (uncheckedTiles.Count > 0)
             {
                 var tile = uncheckedTiles.First();
+
                 uncheckedTiles.Remove(tile);
                 checkedTiles.Add(tile);
 
+                cost++;
+
                 foreach (var path in tile.GetNextPositions(turnData.Tiles))
                 {
+                    var questTiles = turnData.GetQuests(turnData.Me).Select(x => x.Item.Tile).Where(x => x != null);
+                    path.Score = questTiles.Any(x => x == path.Destination) ? 100 : 0;
+                    //path.Score += 100 - questTiles.Min(x => path.Destination.ManhattanDistance(x));
+
+                    path.Cost = cost;
+
                     checkedPaths.Add(path);
                     if (!checkedTiles.Contains(path.Destination))
                         uncheckedTiles.Add(path.Destination);
-                }
+                }                
             }
 
             return checkedPaths;
         }
 
-        public class TileWithDistance
-        {
-            public string XY { get; set; }
-            public int Distance { get; set; }
-        }
-
-
         public List<Path> GetPath(Tile origin, Tile destination, TurnData turnData)
         {
             var availablePaths = GetAvailablePaths(origin, turnData);
             //var orderedPaths = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).Select(x => new TileWithDistance { XY = x.Destination.XY, Distance = x.Destination.ManhattanDistance(destination) });
-            var closest = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).FirstOrDefault();
-            if (closest == null || closest.Destination == origin)
+            //var closest = availablePaths.OrderBy(x => x.Destination.ManhattanDistance(destination)).FirstOrDefault();
+            var bestPath = availablePaths.OrderByDescending(x => x.Score).ThenBy(x => x.Cost).FirstOrDefault();
+
+            if (bestPath == null || bestPath.Destination == origin)
                 return new List<Path>();
 
-            var paths = new List<Path> { closest };
-            var pathOrigin = closest.Origin;
+            var paths = new List<Path> { bestPath };
+            var pathOrigin = bestPath.Origin;
             while (pathOrigin != origin)
             {
-                var path = availablePaths.First(x => x.Destination == pathOrigin);
+                var path = availablePaths.Where(x => x.Destination == pathOrigin).OrderByDescending(x => x.Score).ThenBy(x => x.Cost).First();
                 paths.Add(path);
                 pathOrigin = path.Origin;
             }
@@ -119,7 +124,113 @@ namespace XmasRush
 
         public void Push(TurnData turnData)
         {
-            Console.WriteLine("PUSH 3 RIGHT"); // PUSH <id> <direction> | MOVE <direction> | PASS
+            var routes = new List<Route>();
+
+            for (int x = 0; x < 7; x++)
+            {
+                var turnDataClone = turnData.Clone();
+                PushX(turnDataClone, x, Direction.Down);
+                var route = GetRoute(turnDataClone);
+                if (route != null)
+                {
+                    route.Command = $"{x} DOWN";
+                    routes.Add(route);
+                }
+            }
+
+            for (int x = 0; x < 7; x++)
+            {
+                var turnDataClone = turnData.Clone();
+                PushX(turnDataClone, x, Direction.Up);
+                var route = GetRoute(turnDataClone);
+                if (route != null)
+                {
+                    route.Command = $"{x} UP";
+                    routes.Add(route);
+                }                    
+            }
+
+            for (int y = 0; y < 7; y++)
+            {
+                var turnDataClone = turnData.Clone();
+                PushY(turnDataClone, y, Direction.Right);
+                var route = GetRoute(turnDataClone);
+                if (route != null)
+                {
+                    route.Command = $"{y} RIGHT";
+                    routes.Add(route);
+                }
+            }
+
+            for (int y = 0; y < 7; y++)
+            {
+                var turnDataClone = turnData.Clone();
+                PushY(turnDataClone, y, Direction.Left);
+                var route = GetRoute(turnDataClone);
+                if (route != null)
+                {
+                    route.Command = $"{y} LEFT";
+                    routes.Add(route);
+                }
+            }
+
+            var bestRoute = GetBestRoute(routes);
+            if (bestRoute != null)
+                Console.WriteLine($"PUSH {bestRoute.Command}");
+            else
+                Console.WriteLine("PUSH 3 RIGHT"); // PUSH <id> <direction> | MOVE <direction> | PASS
+        }
+
+        private Route GetRoute(TurnData turnData)
+        {
+            var goalPosition = turnData.GetQuests(turnData.Me).First().Item.Tile;
+            if (goalPosition == null)
+                return null;
+            return new Route
+            {
+                Paths = GetPath(turnData.Me.Tile, goalPosition, turnData)
+            };
+        }
+
+        private void PushX(TurnData turnData, int x, Direction direction)
+        {
+            var subSet = turnData.Tiles.Where(_ => _.X == x).ToList();
+            if (direction == Direction.Down)
+                subSet.ForEach(_ => _.Y++);
+            else
+                subSet.ForEach(_ => _.Y--);
+
+            turnData.Me.TileInHand.X = x;
+            turnData.Me.TileInHand.Y = direction == Direction.Down ? 0 : 7;
+            turnData.Tiles.Add(turnData.Me.TileInHand);
+            var oldTile = turnData.Tiles.Single(_ => _.Y == (direction == Direction.Down ? 7 : -1));
+            turnData.Tiles.Remove(oldTile);
+
+            if (turnData.Me.Tile == oldTile)
+                turnData.Me.Tile = turnData.Me.TileInHand;
+        }
+
+        private void PushY(TurnData turnData, int y, Direction direction)
+        {
+            var subSet = turnData.Tiles.Where(_ => _.Y == y).ToList();
+            if (direction == Direction.Right)
+                subSet.ForEach(_ => _.X++);
+            else
+                subSet.ForEach(_ => _.X--);
+
+            turnData.Me.TileInHand.Y = y;
+            turnData.Me.TileInHand.X = direction == Direction.Right ? 0 : 7;
+            turnData.Tiles.Add(turnData.Me.TileInHand);
+            var oldTile = turnData.Tiles.Single(_ => _.X == (direction == Direction.Right ? 7 : -1));
+            turnData.Tiles.Remove(oldTile);
+
+            if (turnData.Me.Tile == oldTile)
+                turnData.Me.Tile = turnData.Me.TileInHand;
+        }
+
+        private Route GetBestRoute(List<Route> routes)
+        {
+            return routes.OrderByDescending(x => x.Score).ThenBy(x => x.Cost).FirstOrDefault();
         }
     }
 
@@ -129,16 +240,39 @@ namespace XmasRush
     {
         public TurnType TurnType { get; set; }
 
-        public List<Player> Players { get; } = new List<Player>();
+        public List<Player> Players { get; private set; } = new List<Player>();
 
         public Player Me => Players.Single(x => x.Id == 0);
 
         public Player Opponent => Players.Single(x => x.Id == 1);
 
-        public List<Item> Items { get; } = new List<Item>();
+        public List<Item> Items { get; private set; } = new List<Item>();
 
-        public List<Quest> Quests { get; } = new List<Quest>();
-        public List<Tile> Tiles { get; } = new List<Tile>();
+        public List<Quest> Quests { get; private set; } = new List<Quest>();
+        public List<Tile> Tiles { get; private set; } = new List<Tile>();
+
+        public IEnumerable<Quest> GetQuests(Player player)
+        {
+            return Quests.Where(x => x.Owner == player);
+        }
+
+        public TurnData Clone()
+        {
+            var clone = (TurnData)MemberwiseClone();
+            clone.Tiles = Tiles.Select(_ => _.Clone()).ToList();
+            clone.Players = Players.Select(_ => _.Clone()).ToList();
+            clone.Players.ForEach(x => x.Tile = clone.Tiles.Single(_ => _.XY == x.Tile.XY));
+
+            clone.Items = Items.Select(_ => _.Clone()).ToList();
+            clone.Items.ForEach(x => x.Tile = clone.Tiles.SingleOrDefault(_ => _.XY == x.Tile?.XY));
+            clone.Items.ForEach(x => x.Owner = clone.Players.Single(_ => _.Id == x.Owner.Id));
+
+            clone.Quests = Quests.Select(_ => _.Clone()).ToList();
+            clone.Quests.ForEach(x => x.Owner = clone.Players.Single(_ => _.Id == x.Owner.Id));
+            clone.Quests.ForEach(x => x.Item = clone.Items.Single(_ => _.Name == x.ItemName && _.Owner.Id == x.Owner.Id));
+
+            return clone;
+        }
     }
 
     public class Quest
@@ -152,6 +286,11 @@ namespace XmasRush
         public string ItemName { get; }
 
         public Item Item { get; set; }
+
+        public Quest Clone()
+        {
+            return (Quest)MemberwiseClone();
+        }
     }
 
     public class Position
@@ -182,29 +321,40 @@ namespace XmasRush
         }
     }
 
-    public class Player : Position
+    public class Player
     {
-        public Player(int x, int y, int id) : base(x, y)
+        public Player(int id)
         {
             Id = id;
         }
 
         public int Id { get; set; }
 
-        public List<Quest> Quests { get; } = new List<Quest>();
+        public Tile TileInHand { get; set; }
 
         public Tile Tile { get; set; }
+
+        public Player Clone()
+        {
+            return (Player)MemberwiseClone();
+        }
     }
 
-    public class Item : Position
+    public class Item
     {
-        public Item(int x, int y, string name) : base(x, y)
+        public Item(string name)
         {
             Name = name;
         }
 
         public Player Owner { get; set; }
         public string Name { get; }
+        public Tile Tile { get; set; }
+
+        public Item Clone()
+        {
+            return (Item)MemberwiseClone();
+        }
     }
 
     public class Tile : Position
@@ -225,7 +375,6 @@ namespace XmasRush
         public bool Right { get; }
         public bool Down { get; }
         public bool Left { get; }
-        public string Path { get; set; }
 
         public bool HasDirection(Direction direction)
         {
@@ -286,6 +435,11 @@ namespace XmasRush
 
             return availablePositions.Where(x => x != null);
         }
+
+        public Tile Clone()
+        {
+            return (Tile)MemberwiseClone();
+        }
     }
 
     public class Path
@@ -300,6 +454,19 @@ namespace XmasRush
         public Tile Origin { get; set; }
         public Tile Destination { get; set; }
         public string Command { get; set; }
+        public int Score { get; set; }
+        public int Cost { get; set; }
+    }
+
+    public class Route
+    {
+        public List<Path> Paths { get; set; }
+
+        public string Command { get; set; }
+
+        public int Score => Paths.Sum(x => x.Score);
+
+        public int Cost => Paths.Sum(x => x.Cost);
     }
 
     public enum Direction
@@ -374,9 +541,10 @@ namespace XmasRush
                     inputs = stringReader.ReadLine().Split(' ');
 
                     turnData.Players.Add(
-                        new Player(int.Parse(inputs[1]), int.Parse(inputs[2]), i)
+                        new Player(i)
                         {
-                            Tile = new Tile(-1, -1, inputs[3])
+                            TileInHand = new Tile(-1, -1, inputs[3]),
+                            Tile = turnData.Tiles.Single(_ => _.X == int.Parse(inputs[1]) && _.Y == int.Parse(inputs[2]))
                         }
                     );
                 }
@@ -386,9 +554,10 @@ namespace XmasRush
                     inputs = stringReader.ReadLine().Split(' ');
 
                     // Note: Si un objet se trouve sur la tuile d'un joueur, itemX et itemY serons égaux à -1 pour ce joueur, et -2 pour son adversaire.
-                    var item = new Item(int.Parse(inputs[1]), int.Parse(inputs[2]), inputs[0])
+                    var item = new Item(inputs[0])
                     {
-                        Owner = turnData.Players.SingleOrDefault(x => x.Id == int.Parse(inputs[3]))
+                        Owner = turnData.Players.SingleOrDefault(x => x.Id == int.Parse(inputs[3])),
+                        Tile = turnData.Tiles.SingleOrDefault(_ => _.X == int.Parse(inputs[1]) && _.Y == int.Parse(inputs[2]))
                     };
 
                     turnData.Items.Add(item);
@@ -407,8 +576,6 @@ namespace XmasRush
                     };
 
                     turnData.Quests.Add(quest);
-
-                    forPlayer.Quests.Add(quest);
                 }
             }
 
