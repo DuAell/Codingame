@@ -53,7 +53,7 @@ namespace XmasRush
             var myPosition = turnData.Me.Tile;
 
             var route = GetRoute(myPosition, turnData);
-            if (route.Paths.Any())
+            if (route?.Paths.Any() == true)
                 Console.WriteLine($"MOVE {string.Join(" ", route.Paths.Select(x => x.Command))}");
             else
                 Console.WriteLine("PASS");
