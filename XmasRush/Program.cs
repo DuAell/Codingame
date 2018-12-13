@@ -51,17 +51,10 @@ namespace XmasRush
         public void Move(TurnData turnData)
         {
             var myPosition = turnData.Me.Tile;
-            var goalPosition = turnData.GetQuests(turnData.Me).First().Item.Tile;
 
-            if (goalPosition == null || myPosition == goalPosition)
-            {
-                Console.WriteLine("PASS");
-                return;
-            }
-
-            var paths = GetPath(myPosition, goalPosition, turnData);
-            if (paths.Any())
-                Console.WriteLine($"MOVE {string.Join(" ", paths.Select(x => x.Command))}");
+            var route = GetRoute(myPosition, turnData);
+            if (route.Paths.Any())
+                Console.WriteLine($"MOVE {string.Join(" ", route.Paths.Select(x => x.Command))}");
             else
                 Console.WriteLine("PASS");
         }
@@ -85,23 +78,18 @@ namespace XmasRush
                 foreach (var path in tile.GetNextPositions(turnData.Tiles))
                 {
                     var questTiles = turnData.GetQuests(turnData.Me).Select(x => x.Item.Tile).Where(x => x != null);
-                    path.Score = questTiles.Any(x => x == path.Destination) ? 100 : 0;
+                    path.Score += questTiles.Any(x => x == path.Destination) ? 100 : 0;
 
                     // Prefer paths where we have more possible exits
                     path.Score += path.Destination.GetNextPositions(turnData.Tiles).Count();
-                    //path.Score += 100 - questTiles.Min(x => path.Destination.ManhattanDistance(x));
 
                     path.Cost = cost;
 
-                    var otherPathForSameDestination = bestPaths.SingleOrDefault(x => x.Destination == path.Destination);
-                    if (otherPathForSameDestination == null)
-                        bestPaths.Add(path);
-                    else if (otherPathForSameDestination.Score < path.Score || otherPathForSameDestination.Cost > path.Cost)
-                    {
-                        bestPaths.Remove(otherPathForSameDestination);
-                        bestPaths.Add(path);
-                    }
-                                       
+                    bestPaths.Add(path);
+
+                    if (cost >= 20)
+                        continue;
+
                     if (!checkedTiles.Contains(path.Destination))
                         uncheckedTiles.Add(path.Destination);
                 }                
@@ -110,25 +98,33 @@ namespace XmasRush
             return bestPaths;
         }
 
-        public List<Path> GetPath(Tile origin, Tile destination, TurnData turnData)
+        public Route GetRoute(Tile origin, TurnData turnData)
         {
             var availablePaths = GetAvailablePaths(origin, turnData);
-            var bestPath = availablePaths.OrderByDescending(x => x.Score).ThenBy(x => x.Cost).FirstOrDefault();
 
-            if (bestPath == null || bestPath.Destination == origin)
-                return new List<Path>();
-
-            var paths = new List<Path> { bestPath };
-            var pathOrigin = bestPath.Origin;
-            while (pathOrigin != origin)
+            var routes = new List<Route>();
+            foreach (var destinationPath in availablePaths)
             {
-                var path = availablePaths.Where(x => x.Destination == pathOrigin).OrderByDescending(x => x.Score).ThenBy(x => x.Cost).First();
-                paths.Add(path);
-                pathOrigin = path.Origin;
+                if (destinationPath.Destination == origin)
+                    continue;
+
+                var route = new Route();
+                var pathOrigin = destinationPath.Origin;
+                while (pathOrigin != origin)
+                {
+                    var path = availablePaths.Where(x => x.Destination == pathOrigin).OrderByDescending(x => x.Score).ThenBy(x => x.Cost).First();
+                    route.Paths.Add(path);
+                    pathOrigin = path.Origin;
+                }
+
+                if (route.Paths.Any())
+                {
+                    route.Paths.Reverse();
+                    routes.Add(route);
+                }
             }
 
-            paths.Reverse();
-            return paths;
+            return routes.OrderByDescending(x => x.Score).ThenBy(x => x.Cost).FirstOrDefault();
         }
 
         public void Push(TurnData turnData)
@@ -139,7 +135,7 @@ namespace XmasRush
             {
                 var turnDataClone = turnData.Clone();
                 PushX(turnDataClone, x, Direction.Down);
-                var route = GetRoute(turnDataClone);
+                var route = GetRoute(turnDataClone.Me.Tile, turnDataClone);
                 if (route != null)
                 {
                     route.Command = $"{x} DOWN";
@@ -151,7 +147,7 @@ namespace XmasRush
             {
                 var turnDataClone = turnData.Clone();
                 PushX(turnDataClone, x, Direction.Up);
-                var route = GetRoute(turnDataClone);
+                var route = GetRoute(turnDataClone.Me.Tile, turnDataClone);
                 if (route != null)
                 {
                     route.Command = $"{x} UP";
@@ -163,7 +159,7 @@ namespace XmasRush
             {
                 var turnDataClone = turnData.Clone();
                 PushY(turnDataClone, y, Direction.Right);
-                var route = GetRoute(turnDataClone);
+                var route = GetRoute(turnDataClone.Me.Tile, turnDataClone);
                 if (route != null)
                 {
                     route.Command = $"{y} RIGHT";
@@ -175,7 +171,7 @@ namespace XmasRush
             {
                 var turnDataClone = turnData.Clone();
                 PushY(turnDataClone, y, Direction.Left);
-                var route = GetRoute(turnDataClone);
+                var route = GetRoute(turnDataClone.Me.Tile, turnDataClone);
                 if (route != null)
                 {
                     route.Command = $"{y} LEFT";
@@ -188,17 +184,6 @@ namespace XmasRush
                 Console.WriteLine($"PUSH {bestRoute.Command}");
             else
                 Console.WriteLine("PUSH 3 RIGHT"); // PUSH <id> <direction> | MOVE <direction> | PASS
-        }
-
-        private Route GetRoute(TurnData turnData)
-        {
-            var goalPosition = turnData.GetQuests(turnData.Me).First().Item.Tile;
-            if (goalPosition == null)
-                return null;
-            return new Route
-            {
-                Paths = GetPath(turnData.Me.Tile, goalPosition, turnData)
-            };
         }
 
         private void PushX(TurnData turnData, int x, Direction direction)
@@ -494,7 +479,7 @@ namespace XmasRush
 
     public class Route
     {
-        public List<Path> Paths { get; set; }
+        public List<Path> Paths { get; set; } = new List<Path>();
 
         public string Command { get; set; }
 
