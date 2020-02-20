@@ -52,6 +52,15 @@ namespace CodeALaMode
             public Table IceCream;
             public Table ChoppingBoard;
             public List<Table> Tables = new List<Table>();
+            public List<Order> Orders = new List<Order>();
+
+            public Player MyChef;
+        }
+
+        public class Order
+        {
+            public string Item;
+            public int Award;
         }
 
         public class Table
@@ -119,18 +128,24 @@ namespace CodeALaMode
 
                 string[] inputs;
 
+                var game = new Game();
+
                 // ALL CUSTOMERS INPUT: to ignore until Bronze
                 int numAllCustomers = int.Parse(inputProcessor.ReadLine());
                 for (int i = 0; i < numAllCustomers; i++)
                 {
                     inputs = inputProcessor.ReadLine().Split(' ');
-                    string customerItem = inputs[0]; // the food the customer is waiting for
-                    int customerAward = int.Parse(inputs[1]); // the number of points awarded for delivering the food
+                    game.Orders.Add(new Order
+                    {
+                        Item = inputs[0], // the food the customer is waiting for
+                        Award = int.Parse(inputs[1]) // the number of points awarded for delivering the food
+                    });
                 }
 
-                var game = new Game();
                 game.Players[0] = new Player(null, null);
                 game.Players[1] = new Player(null, null);
+
+                game.MyChef = game.Players[0];
 
                 for (int i = 0; i < 7; i++)
                 {
@@ -160,7 +175,6 @@ namespace CodeALaMode
             }
 
             public static Game Game;
-            public static Player MyChef;
 
             public static void Main()
             {
@@ -168,7 +182,12 @@ namespace CodeALaMode
 
                 Game = ReadGame();
 
-                MyChef = Game.Players[0];
+                var recipes = new List<Recipe>
+                {
+                    Recipe.DishIceCream,
+                    Recipe.DishBlueberries,
+                    Recipe.DishChoppedStrawberries
+                };
 
                 while (true)
                 {
@@ -203,36 +222,54 @@ namespace CodeALaMode
                     for (int i = 0; i < numCustomers; i++)
                     {
                         inputs = inputProcessor.ReadLine().Split(' ');
-                        string customerItem = inputs[0];
-                        int customerAward = int.Parse(inputs[1]);
+                        gameTurn.Orders.Add(new Order
+                        {
+                            Item = inputs[0], // the food the customer is waiting for
+                            Award = int.Parse(inputs[1]) // the number of points awarded for delivering the food
+                        });
                     }
 
                     inputProcessor.WriteDebugData();
 
                     var tablesNotEmpty = Game.Tables.Where(x => x.Item != null).ToList();
+                    var possibleMoves = new List<PossibleMove>();
 
                     // GAME LOGIC
-                    if (!MyChef.Item?.HasPlate ?? false)
-                        gameTurn.PossibleMoves.Add(new PossibleMove{ Name = "Dishwasher", Position = Game.Dishwasher.Position, Score = 0});
-                    if (MyChef.Item.Content.Count(x => x == '-') >= 3)
-                        gameTurn.PossibleMoves.Add(new PossibleMove { Name = "Window", Position = Game.Window.Position, Score = 0 });
-                    if (!MyChef.Item.Content.Contains(Ingredient.IceCream))
-                    {
-                        gameTurn.AddPossibleMove(new PossibleMove { Position = Game.IceCream.Position, Name = Ingredient.IceCream });
-                    }
-                    if (!MyChef.Item.Content.Contains(Ingredient.Blueberries))
-                    {
-                        gameTurn.AddPossibleMove(new PossibleMove { Position = Game.Blueberry.Position, Name = Ingredient.Blueberries });
-                    }
-                    if (!MyChef.Item.Content.Contains(Ingredient.ChoppedStrawberries) && tablesNotEmpty.Any(x => x.Item.Content.Contains(Ingredient.ChoppedStrawberries)))
-                    {
-                        gameTurn.AddPossibleMove(new PossibleMove { Position = tablesNotEmpty.First(x => x.Item.Content.Contains(Ingredient.ChoppedStrawberries)).Position, Name = Ingredient.ChoppedStrawberries });
-                    }
-                    gameTurn.PossibleMoves.Add(new PossibleMove { Name = "Window", Position = Game.Window.Position, Score = 100 });
+                    if (!Game.MyChef.Item.HasPlate)
+                        possibleMoves.Add(new PossibleMove{ Name = "Dishwasher", Position = Game.Dishwasher.Position, Score = 0});
 
-                    if (gameTurn.PossibleMoves.Any())
+                    if (gameTurn.Orders.Any(x => x.Item == Game.MyChef.Item.Content))
+                        possibleMoves.Add(new PossibleMove { Name = "Window", Position = Game.Window.Position, Score = 0 });
+
+                    foreach (var order in gameTurn.Orders.OrderByDescending(x => x.Award))
                     {
-                        var chosenMove = gameTurn.PossibleMoves.OrderBy(x => x.Score).First();
+                        var recipe = recipes.FirstOrDefault(x => x.Name == order.Item);
+                        if (recipe == null)
+                        {
+                            Console.Error.WriteLine($"Unknown recipe: {order.Item}");
+                            continue;
+                        }
+
+                        possibleMoves.Add(recipe.GetBestMove(Game, gameTurn));
+
+
+                        //var ingredients = order.Item.Split('-');
+                        //foreach (var ingredient in ingredients)
+                        //{
+                        //    if (!Game.MyChef.Item.Content.Contains(ingredient))
+                        //    {
+                        //        var possibleMove = gameTurn.GetBestMoveForIngredient(ingredient);
+                        //        if (possibleMove != null)
+                        //            possibleMoves.Add(possibleMove);
+                        //    }
+                        //}
+                    }
+
+                    possibleMoves.Add(new PossibleMove { Name = "Window", Position = Game.Window.Position, Score = 10000 });
+
+                    if (possibleMoves.Any())
+                    {
+                        var chosenMove = possibleMoves.OrderBy(x => x.Score).First();
                         Use(chosenMove.Position, $"{chosenMove.Name}: {chosenMove.Score}");
                     }
                     else
@@ -241,19 +278,6 @@ namespace CodeALaMode
                     // once ready, put it on the first empty table for now
                     //Use(game.Tables.First(t => t.Item == null).Position);
 
-                    var recipes = new List<Recipe>
-                    {
-                        new Recipe
-                        {
-                            Name = "DISH-ICE_CREAM",
-                            Ingredients = new List<Ingredient>
-                            {
-                                new Ingredient {Name = Dish, Order = 0},
-                                new Ingredient {Name = "ICE_CREAM", Order = 0}
-                            }
-                        }
-                    };
-
                     if (inputProcessor.IsDebug)
                         return;
                 }
@@ -261,12 +285,40 @@ namespace CodeALaMode
 
             public class GameTurn
             {
-                public readonly List<PossibleMove> PossibleMoves = new List<PossibleMove>();
+                public List<Order> Orders = new List<Order>();
 
-                public void AddPossibleMove(PossibleMove possibleMove)
+                public PossibleMove GetBestMoveForIngredient(string ingredient)
                 {
-                    possibleMove.Score = MyChef.Position.Manhattan(possibleMove.Position);
-                    PossibleMoves.Add(possibleMove);
+                    return GetPossibleMovesForIngredient(ingredient).OrderBy(x => x.Score).FirstOrDefault();
+                }
+
+                private List<PossibleMove> GetPossibleMovesForIngredient(string ingredient)
+                {
+                    var possibleMoves = new List<PossibleMove>();
+                    PossibleMove possibleMove;
+
+                    var tablesNotEmpty = Game.Tables.Where(x => x.Item != null).ToList();
+
+                    switch (ingredient)
+                    {
+                        case IngredientName.IceCream:
+                            possibleMove = new PossibleMove {Position = Game.IceCream.Position, Name = IngredientName.IceCream};
+                            possibleMove.CalculateScoreFromPosition(Game.MyChef.Position);
+                            possibleMoves.Add(possibleMove);
+                            break;
+                        case IngredientName.Blueberries:
+                            possibleMove = new PossibleMove { Position = Game.Blueberry.Position, Name = IngredientName.Blueberries };
+                            possibleMove.CalculateScoreFromPosition(Game.MyChef.Position);
+                            possibleMoves.Add(possibleMove);
+                            break;
+                        case IngredientName.ChoppedStrawberries:
+                            possibleMove = new PossibleMove { Position = tablesNotEmpty.First(x => x.Item.Content.Contains(IngredientName.ChoppedStrawberries)).Position, Name = IngredientName.ChoppedStrawberries };
+                            possibleMove.CalculateScoreFromPosition(Game.MyChef.Position);
+                            possibleMoves.Add(possibleMove);
+                            break;
+                    }
+
+                    return possibleMoves;
                 }
             }
         }
@@ -276,26 +328,145 @@ namespace CodeALaMode
             public string Name { get; set; }
             public Position Position { get; set; }
             public int Score { get; set; }
+
+            public void CalculateScoreFromPosition(Position position)
+            {
+                Score = position.Manhattan(Position);
+            }
         }
 
         public class Recipe
         {
             public string Name { get; set; }
 
-            public List<Ingredient> Ingredients { get; set; }
+            public List<Ingredient> Ingredients { get; set; } = new List<Ingredient>();
+
+            public static Recipe DishIceCream = new Recipe
+            {
+                Name = $"{IngredientName.Dish}-{IngredientName.IceCream}",
+                Ingredients = new List<Ingredient>
+                {
+                    Ingredient.Dish,
+                    Ingredient.IceCream
+                }
+            };
+
+            public static Recipe DishBlueberries = new Recipe
+            {
+                Name = $"{IngredientName.Dish}-{IngredientName.Blueberries}",
+                Ingredients = new List<Ingredient>
+                {
+                    Ingredient.Dish,
+                    Ingredient.Blueberries
+                }
+            };
+
+            public static Recipe DishChoppedStrawberries = new Recipe
+            {
+                Name = $"{IngredientName.Dish}-{IngredientName.ChoppedStrawberries}",
+                Ingredients = new List<Ingredient>
+                {
+                    Ingredient.Dish,
+                    Ingredient.ChoppedStrawberries
+                }
+            };
+
+            public PossibleMove GetBestMove(Game game, MainClass.GameTurn gameTurn)
+            {
+                var tablesNotEmpty = game.Tables.Where(x => x.Item != null).ToList();
+
+                var readyDish = tablesNotEmpty.FirstOrDefault(x => x.Item.Content == Name);
+                if (readyDish != null)
+                    return new PossibleMove{ Name = Name, Position = readyDish.Position, Score = 0};
+
+                var possibleMoves = GetPossibleMoves(game, gameTurn);
+                return possibleMoves.OrderBy(x => x.Score).FirstOrDefault();
+            }
+
+            private List<PossibleMove> GetPossibleMoves(Game game, MainClass.GameTurn gameTurn)
+            {
+                return Ingredients.Select(x => x.GetBestMoveForIngredient(x.Name, game, gameTurn)).ToList();
+            }
+        }
+
+        public class RecipeIngredient
+        {
+            public Recipe Ingredient { get; set; }
+            public int Order { get; set; }
         }
 
         public class Ingredient
+        {
+            public string Name { get; set; }
+
+            public PossibleMove GetBestMoveForIngredient(string ingredient, Game game, MainClass.GameTurn gameTurn)
+            {
+                return GetPossibleMovesForIngredient(ingredient, game, gameTurn).OrderBy(x => x.Score).FirstOrDefault();
+            }
+
+            private List<PossibleMove> GetPossibleMovesForIngredient(string ingredient, Game game, MainClass.GameTurn gameTurn)
+            {
+                var possibleMoves = new List<PossibleMove>();
+                PossibleMove possibleMove;
+
+                var tablesNotEmpty = game.Tables.Where(x => x.Item != null).ToList();
+
+                switch (ingredient)
+                {
+                    case IngredientName.IceCream:
+                        possibleMove = new PossibleMove { Position = game.IceCream.Position, Name = IngredientName.IceCream };
+                        possibleMove.CalculateScoreFromPosition(game.MyChef.Position);
+                        possibleMoves.Add(possibleMove);
+                        break;
+                    case IngredientName.Blueberries:
+                        possibleMove = new PossibleMove { Position = game.Blueberry.Position, Name = IngredientName.Blueberries };
+                        possibleMove.CalculateScoreFromPosition(game.MyChef.Position);
+                        possibleMoves.Add(possibleMove);
+                        break;
+                    case IngredientName.ChoppedStrawberries:
+                        possibleMove = new PossibleMove { Position = tablesNotEmpty.First(x => x.Item.Content.Contains(IngredientName.ChoppedStrawberries)).Position, Name = IngredientName.ChoppedStrawberries };
+                        possibleMove.CalculateScoreFromPosition(game.MyChef.Position);
+                        possibleMoves.Add(possibleMove);
+                        break;
+                }
+
+                return possibleMoves;
+            }
+
+            public static Ingredient Dish = new Ingredient
+            {
+                Name = IngredientName.Dish
+            };
+
+            public static Ingredient IceCream = new Ingredient
+            {
+                Name = IngredientName.IceCream
+            };
+
+            public static Ingredient Blueberries = new Ingredient
+            {
+                Name = IngredientName.Blueberries
+            };
+
+            public static Ingredient ChoppedStrawberries = new Ingredient
+            {
+                Name = IngredientName.ChoppedStrawberries
+            };
+        }
+
+        public class RecipeAction
+        {
+            public PossibleMove PossibleMove { get; set; }
+            public int Order { get; set; }
+        }
+
+        public class IngredientName
         {
             public const string Dish = "DISH";
             public const string IceCream = "ICE_CREAM";
             public const string Blueberries = "BLUEBERRIES";
             public const string Strawberries = "STRAWBERRIES";
             public const string ChoppedStrawberries = "CHOPPED_STRAWBERRIES";
-
-            public string Name { get; set; }
-
-            public int Order { get; set; }
         }
     }
 }
