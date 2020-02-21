@@ -26,12 +26,15 @@ public class Player
             int KR = int.Parse(inputs[0]); // row where Kirk is located.
             int KC = int.Parse(inputs[1]); // column where Kirk is located.
             game.Kirk.Position = new Position(KC, KR);
-            for (int x = 0; x < C; x++)
+
+            game.Map = new List<Tile>();
+
+            for (int y = 0; y < R; y++)
             {
                 string row = Console.ReadLine(); // C of the characters in '#.TC?' (i.e. one line of the ASCII maze).
-                for (var y = 0; y < R; y++)
+                for (var x = 0; x < C; x++)
                 {
-                    var tile = Tile.Create(row[y], x, y);
+                    var tile = Tile.Create(row[x], x, y);
                     game.Map.Add(tile);
 
                     if (tile is Start start)
@@ -41,12 +44,12 @@ public class Player
                 }
             }
 
+            Console.Error.WriteLine($"Command room: {game.CommandRoom?.Position.XY}");
+
             if (game.Kirk.Position.XY == game.CommandRoom?.Position.XY)
                 game.HasReachedCommandRoom = true;
 
-            var astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, x is Wall)));
-
-            Console.Error.WriteLine(astarMap.Where(x => x.IsWall).Count());
+            var astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, (x is Wall))));
 
             var astar = new AStarSearch(astarMap);
             var kirkLocation = astarMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
@@ -54,7 +57,10 @@ public class Player
             if (!game.HasReachedCommandRoom && game.CommandRoom != null)
             {
                 Console.Error.WriteLine("Heading towards command room");
-                Console.WriteLine(game.Kirk.GetDirectionTo(game.CommandRoom.Position));
+                var commandRoomLocation = astarMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY);
+                var command = astar.Compute(kirkLocation, commandRoomLocation);
+                Console.WriteLine(game.Kirk.GetDirectionTo(command.First().Position));
+                //Console.WriteLine(game.Kirk.GetDirectionTo(game.CommandRoom.Position));
                 continue;
             }
             if (game.HasReachedCommandRoom)
@@ -72,6 +78,7 @@ public class Player
             foreach (var nearestUnknownTile in nearestUnknownTiles)
             {
                 var nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == nearestUnknownTile.Position.XY);
+                //nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == "28 6");
                 var result = astar.Compute(kirkLocation, nearestUnknownTileLocation);
                 if (result == null)
                     continue;
@@ -119,6 +126,9 @@ public abstract class Tile
     public static Tile Create(char letter, int x, int y)
     {
         var position = new Position(x, y);
+
+        //if (position.XY == "12 6")
+        //Console.Error.WriteLine($"{position.XY}: {letter}");
 
         switch (letter)
         {
@@ -168,7 +178,7 @@ public class Position
     public int Manhattan(Position p2) => Math.Abs(X - p2.X) + Math.Abs(Y - p2.Y);
 }
 
-public class Kirk : Tile
+public class Kirk : Empty
 {
 
 }
@@ -185,7 +195,7 @@ public class Empty : Tile
 {
 }
 
-public class CommandRoom : Tile
+public class CommandRoom : Empty
 {
 }
 
@@ -221,8 +231,6 @@ public class AStarSearch
             var lowest = openList.Min(l => l.TotalScore);
             var current = openList.First(l => l.TotalScore == lowest);
 
-            Console.Error.WriteLine($"Trying {current.Position.XY}");
-
             // add the current square to the closed list
             closedList.Add(current);
 
@@ -237,7 +245,8 @@ public class AStarSearch
                 break;
             }
 
-            var adjacentSquares = GetWalkableAdjacentSquares(current, Map);
+            var adjacentSquares = GetWalkableAdjacentSquares(current, Map).ToList();
+            Console.Error.WriteLine($"{adjacentSquares.Count} possibilities for {current.Position.XY}: {string.Join(",", adjacentSquares.Select(_ => _.Position.XY))}");
             movementCost++;
 
             foreach (var adjacentSquare in adjacentSquares)
@@ -256,7 +265,7 @@ public class AStarSearch
                     adjacentSquare.CostToDestination = adjacentSquare.Position.Manhattan(end.Position);
                     adjacentSquare.Parent = current;
 
-                    Console.Error.WriteLine($"Adding {current.Position.XY} as parent of {adjacentSquare.Position.XY}");
+                    //Console.Error.WriteLine($"Adding {current.Position.XY} as parent of {adjacentSquare.Position.XY}");
 
                     // and add it to the open list
                     openList.Insert(0, adjacentSquare);
