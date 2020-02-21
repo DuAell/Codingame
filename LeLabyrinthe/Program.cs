@@ -22,6 +22,8 @@ public class Player
         // game loop
         while (true)
         {
+            game.MovesLeft--;
+
             inputs = Console.ReadLine().Split(' ');
             int KR = int.Parse(inputs[0]); // row where Kirk is located.
             int KC = int.Parse(inputs[1]); // column where Kirk is located.
@@ -49,45 +51,84 @@ public class Player
             if (game.Kirk.Position.XY == game.CommandRoom?.Position.XY)
                 game.HasReachedCommandRoom = true;
 
-            var astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, (x is Wall))));
+            List<AStarSearch.Location> astarMap;
 
-            var astar = new AStarSearch(astarMap);
-            var kirkLocation = astarMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
+            if (game.CommandRoom != null)
+            {
+                astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, (x is Wall || x is Unknown))));
 
-            if (!game.HasReachedCommandRoom && game.CommandRoom != null)
-            {
-                Console.Error.WriteLine("Heading towards command room");
-                var commandRoomLocation = astarMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY);
-                var command = astar.Compute(kirkLocation, commandRoomLocation);
-                Console.WriteLine(game.Kirk.GetDirectionTo(command.First().Position));
-                //Console.WriteLine(game.Kirk.GetDirectionTo(game.CommandRoom.Position));
-                continue;
-            }
-            if (game.HasReachedCommandRoom)
-            {
-                Console.Error.WriteLine("Escaping");
+                var astar = new AStarSearch(astarMap);
+                var kirkLocation = astarMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
                 var startLocation = astarMap.Find(_ => _.Position.XY == game.Start.Position.XY);
-                var escape = astar.Compute(kirkLocation, startLocation);
-                Console.WriteLine(game.Kirk.GetDirectionTo(escape.First().Position));
-                //Console.WriteLine(game.Kirk.GetDirectionTo(game.Start.Position));
-                continue;
+                var startRoute = astar.Compute(kirkLocation, startLocation).ToList();
+                var distanceToStart = startRoute.Count;
+
+                var commandRoomLocation = astarMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY);
+                var commandRoomRoute = astar.Compute(kirkLocation, commandRoomLocation).ToList();
+                var distanceToCommandRoom = commandRoomRoute.Count;
+
+                if (distanceToStart + distanceToCommandRoom + 1 < game.MovesLeft)
+                {
+                    Console.Error.WriteLine("Continue exploration");
+                    astarMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY).IsWall = true;
+
+                    ExploreUnknown(game, astarMap);
+                    continue;
+                }
+                else
+                {
+                    if (!game.HasReachedCommandRoom)
+                    {
+                        Console.Error.WriteLine("Going to command room");
+                        Console.WriteLine(game.Kirk.GetDirectionTo(commandRoomRoute.First().Position));
+                        continue;
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("Escaping");
+                        Console.WriteLine(game.Kirk.GetDirectionTo(startRoute.First().Position));
+                        continue;
+                    }
+                }
             }
 
             Console.Error.WriteLine("Searching the command room");
-            var nearestUnknownTiles = game.Map.OfType<Unknown>().OrderBy(x => game.Kirk.Position.Manhattan(x.Position));
-            foreach (var nearestUnknownTile in nearestUnknownTiles)
-            {
-                var nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == nearestUnknownTile.Position.XY);
-                //nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == "28 6");
-                var result = astar.Compute(kirkLocation, nearestUnknownTileLocation);
-                if (result == null)
-                    continue;
-                Console.WriteLine(game.Kirk.GetDirectionTo(result.First().Position));
-                break;
-            }
+            astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, x is Wall)));
+            ExploreUnknown(game, astarMap);
+            continue;
+
+            //var nearestUnknownTiles = game.Map.OfType<Unknown>().OrderBy(x => game.Kirk.Position.Manhattan(x.Position));
+            //foreach (var nearestUnknownTile in nearestUnknownTiles)
+            //{
+            //    var nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == nearestUnknownTile.Position.XY);
+            //    //nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == "28 6");
+            //    var result = astar.Compute(kirkLocation, nearestUnknownTileLocation);
+            //    if (result == null)
+            //        continue;
+            //    Console.WriteLine(game.Kirk.GetDirectionTo(result.First().Position));
+            //    break;
+            //}
 
             //var nearestUnknownTile = game.Map.OfType<Unknown>().OrderBy(x => game.Kirk.Position.Manhattan(x.Position)).First();
             //Console.WriteLine(game.Kirk.GetDirectionTo(nearestUnknownTile.Position));
+        }
+    }
+
+    static void ExploreUnknown(Game game, List<AStarSearch.Location> astarMap)
+    {
+        var kirkLocation = astarMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
+        var astar = new AStarSearch(astarMap);
+
+        var nearestUnknownTiles = game.Map.OfType<Unknown>().Where(_ => !astarMap.Where(m => m.IsWall).Select(m => m.Position.XY).ToList().Contains(_.Position.XY)).OrderBy(x => game.Kirk.Position.Manhattan(x.Position));
+        foreach (var nearestUnknownTile in nearestUnknownTiles)
+        {
+            var nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == nearestUnknownTile.Position.XY);
+            //nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == "28 6");
+            var result = astar.Compute(kirkLocation, nearestUnknownTileLocation);
+            if (result == null)
+                continue;
+            Console.WriteLine(game.Kirk.GetDirectionTo(result.First().Position));
+            break;
         }
     }
 }
@@ -97,6 +138,7 @@ public class Game
     public List<Tile> Map { get; set; } = new List<Tile>();
     public Kirk Kirk { get; } = new Kirk();
     public CommandRoom CommandRoom { get; set; }
+    public int MovesLeft { get; set; } = 1200;
 
     public Start Start { get; set; }
 
@@ -330,7 +372,7 @@ public class AStarSearch
         }
 
         public Position Position { get; }
-        public bool IsWall { get; }
+        public bool IsWall { get; set; }
 
         /// <summary>
         /// Score
