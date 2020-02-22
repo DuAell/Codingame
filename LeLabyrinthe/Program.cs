@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 /**
  * Auto-generated code below aims at helping you parse
@@ -8,8 +9,6 @@ using System.Collections.Generic;
  **/
 public class Player
 {
-
-
     static void Main(string[] args)
     {
         var game = new Game();
@@ -19,15 +18,21 @@ public class Player
         var C = int.Parse(inputs[1]); // number of columns.
         var A = int.Parse(inputs[2]); // number of rounds between the time the alarm countdown is activated and the time the alarm goes off.
 
+        game.TurnsBeforeAlarm = A;
+
+        AStarSearch.Route routeToFollow = null;
+
         // game loop
         while (true)
         {
             game.MovesLeft--;
+            Console.Error.WriteLine($"Moves left: {game.MovesLeft}");
 
             inputs = Console.ReadLine().Split(' ');
             int KR = int.Parse(inputs[0]); // row where Kirk is located.
             int KC = int.Parse(inputs[1]); // column where Kirk is located.
             game.Kirk.Position = new Position(KC, KR);
+            Console.Error.WriteLine($"Kirk position: {game.Kirk.Position.XY}");
 
             game.Map = new List<Tile>();
 
@@ -46,8 +51,16 @@ public class Player
                 }
             }
 
-            Console.Error.WriteLine($"Command room: {game.CommandRoom?.Position.XY}");
+            Console.Error.WriteLine($"Start position: {game.Start.Position.XY}");
+            Console.Error.WriteLine($"Command room position: {game.CommandRoom?.Position.XY}");
 
+            if (routeToFollow?.IsValid == true)
+            {
+                Console.Error.WriteLine($"Following route {routeToFollow}");
+                WriteNextMove(game, routeToFollow);
+                continue;
+            }
+            
             if (game.Kirk.Position.XY == game.CommandRoom?.Position.XY)
                 game.HasReachedCommandRoom = true;
 
@@ -55,63 +68,90 @@ public class Player
 
             if (game.CommandRoom != null)
             {
-                astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, (x is Wall || x is Unknown))));
+                var knownMap = new List<AStarSearch.Location>(game.Map.Select(x =>
+                    new AStarSearch.Location(x.Position, x is Wall || x is Unknown)));
 
-                var astar = new AStarSearch(astarMap);
-                var kirkLocation = astarMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
-                var startLocation = astarMap.Find(_ => _.Position.XY == game.Start.Position.XY);
-                var startRoute = astar.Compute(kirkLocation, startLocation).ToList();
-                var distanceToStart = startRoute.Count;
+                var astar = new AStarSearch(knownMap);
+                var kirkLocation = knownMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
+                
+                //var startRoute = astar.Compute(kirkLocation, startLocation);
+                //Console.Error.WriteLine($"Start route: {startRoute}");
 
-                var commandRoomLocation = astarMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY);
-                var commandRoomRoute = astar.Compute(kirkLocation, commandRoomLocation).ToList();
-                var distanceToCommandRoom = commandRoomRoute.Count;
+                //if (game.HasReachedCommandRoom && startRoute.Distance <= game.TurnsBeforeAlarm)
+                //{
+                //    Console.Error.WriteLine($"Alarm in {game.TurnsBeforeAlarm} turns");
+                //    game.TurnsBeforeAlarm--;
+                //    Console.Error.WriteLine($"Escaping. Distance: {startRoute.Distance}");
+                //    routeToFollow = startRoute;
+                //    WriteNextMove(game, routeToFollow);
+                //    continue;
+                //}
 
-                if (distanceToStart + distanceToCommandRoom + 1 < game.MovesLeft)
+                var commandRoomLocation = knownMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY);
+                var commandRoomRoute = astar.Compute(kirkLocation, commandRoomLocation); // Can be invalid if we have detected it through a wall but don't know how to get to it
+
+                if (commandRoomRoute.IsValid)
                 {
-                    Console.Error.WriteLine("Continue exploration");
-                    astarMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY).IsWall = true;
-
-                    ExploreUnknown(game, astarMap);
-                    continue;
-                }
-                else
-                {
-                    if (!game.HasReachedCommandRoom)
+                    var escapeMap = new List<AStarSearch.Location>(game.Map.Select(x =>
+                        new AStarSearch.Location(x.Position, x is Wall || x is Unknown)));
+                    var escapeAStar = new AStarSearch(escapeMap);
+                    var startLocation = escapeMap.Find(_ => _.Position.XY == game.Start.Position.XY);
+                    commandRoomLocation = escapeMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY);
+                    var commandRoomToStartRoute = escapeAStar.Compute(commandRoomLocation, startLocation);
+                    var fullRoute = new AStarSearch.Route
                     {
-                        Console.Error.WriteLine("Going to command room");
-                        Console.WriteLine(game.Kirk.GetDirectionTo(commandRoomRoute.First().Position));
+                        Positions = commandRoomRoute.Positions
+                    };
+                    fullRoute.Positions.AddRange(commandRoomToStartRoute.Positions);
+
+                    // With a known route, Kirk can go to command room and escape. So let's do it.
+                    if (fullRoute.IsValid && commandRoomToStartRoute.Distance <= game.TurnsBeforeAlarm)
+                    {
+                        Console.Error.WriteLine($"Full route found. Turns to go and escape : {fullRoute.Distance}. Route: {fullRoute}");
+                        routeToFollow = fullRoute;
+                        WriteNextMove(game, routeToFollow);
                         continue;
                     }
                     else
                     {
-                        Console.Error.WriteLine("Escaping");
-                        Console.WriteLine(game.Kirk.GetDirectionTo(startRoute.First().Position));
-                        continue;
+                        Console.Error.WriteLine($"Not enough time to escape. Need {fullRoute.Distance} and have only {game.TurnsBeforeAlarm}. Route: {fullRoute}");
                     }
                 }
+
+                //// With a known route, Kick can go to command room and escape. So let's do it.
+                //if (commandRoomRoute.IsValid && commandRoomToStartRoute.IsValid && commandRoomRoute.Distance + commandRoomToStartRoute.Distance <= game.TurnsBeforeAlarm)
+                //{
+                //    Console.Error.WriteLine($"Going to command room. Turns to go and escape : {commandRoomRoute.Distance + commandRoomToStartRoute.Distance}");
+                //    Console.Error.WriteLine($"Command room route: {commandRoomRoute}");
+                //    routeToFollow = commandRoomRoute;
+                //    WriteNextMove(game, routeToFollow);
+                //    continue;
+                //}
+                //else // We do not have any known route that allows to go to command room and escape in time. Keep exploring !
+                //{
+                //    if (commandRoomRoute.IsValid)
+                //        Console.Error.WriteLine($"Not enough time to escape. Need {startRoute.Distance + commandRoomRoute.Distance} and have only {game.TurnsBeforeAlarm}");
+                    Console.Error.WriteLine("Continue exploration");
+                    var heuristicMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, x is Wall)));
+                    heuristicMap.Find(_ => _.Position.XY == game.CommandRoom.Position.XY).IsWall = true; // Consider command room as a wall to exclude it
+
+                    ExploreUnknown(game, heuristicMap);
+                    continue;
+                //}
             }
 
             Console.Error.WriteLine("Searching the command room");
             astarMap = new List<AStarSearch.Location>(game.Map.Select(x => new AStarSearch.Location(x.Position, x is Wall)));
             ExploreUnknown(game, astarMap);
             continue;
-
-            //var nearestUnknownTiles = game.Map.OfType<Unknown>().OrderBy(x => game.Kirk.Position.Manhattan(x.Position));
-            //foreach (var nearestUnknownTile in nearestUnknownTiles)
-            //{
-            //    var nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == nearestUnknownTile.Position.XY);
-            //    //nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == "28 6");
-            //    var result = astar.Compute(kirkLocation, nearestUnknownTileLocation);
-            //    if (result == null)
-            //        continue;
-            //    Console.WriteLine(game.Kirk.GetDirectionTo(result.First().Position));
-            //    break;
-            //}
-
-            //var nearestUnknownTile = game.Map.OfType<Unknown>().OrderBy(x => game.Kirk.Position.Manhattan(x.Position)).First();
-            //Console.WriteLine(game.Kirk.GetDirectionTo(nearestUnknownTile.Position));
         }
+    }
+
+    private static void WriteNextMove(Game game, AStarSearch.Route route)
+    {
+        var nextMove = route.Positions.First();
+        route.Positions.Remove(nextMove);
+        Console.WriteLine(game.Kirk.GetDirectionTo(nextMove));
     }
 
     static void ExploreUnknown(Game game, List<AStarSearch.Location> astarMap)
@@ -119,17 +159,27 @@ public class Player
         var kirkLocation = astarMap.Find(_ => _.Position.XY == game.Kirk.Position.XY);
         var astar = new AStarSearch(astarMap);
 
-        var nearestUnknownTiles = game.Map.OfType<Unknown>().Where(_ => !astarMap.Where(m => m.IsWall).Select(m => m.Position.XY).ToList().Contains(_.Position.XY)).OrderBy(x => game.Kirk.Position.Manhattan(x.Position));
+        var unknownMap = game.Map.Where(x => x.GetType() == typeof(Unknown)).ToList();
+        var nearestUnknownTiles = unknownMap.OrderBy(x => game.Kirk.Position.Manhattan(x.Position)).ThenByDescending(x => x.GetAdjacentSquares(unknownMap).Count());
         foreach (var nearestUnknownTile in nearestUnknownTiles)
         {
             var nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == nearestUnknownTile.Position.XY);
-            //nearestUnknownTileLocation = astarMap.First(_ => _.Position.XY == "28 6");
             var result = astar.Compute(kirkLocation, nearestUnknownTileLocation);
-            if (result == null)
+            if (!result.IsValid)
                 continue;
-            Console.WriteLine(game.Kirk.GetDirectionTo(result.First().Position));
+            Console.Error.WriteLine($"Next unknown tile route: {result}");
+            Console.WriteLine(game.Kirk.GetDirectionTo(result.Positions.First()));
             break;
         }
+    }
+}
+
+public static class Helper
+{
+    public static void AddIfNotNull<T>(T item, List<T> list)
+    {
+        if (item != null)
+            list.Add(item);
     }
 }
 
@@ -143,6 +193,7 @@ public class Game
     public Start Start { get; set; }
 
     public bool HasReachedCommandRoom { get; set; }
+    public int TurnsBeforeAlarm { get; set; }
 }
 
 public abstract class Tile
@@ -151,8 +202,6 @@ public abstract class Tile
 
     public string GetDirectionTo(Position destination)
     {
-        Console.Error.WriteLine($"Calculating destination from {Position.XY} to {destination.XY}");
-
         if (Position.X < destination.X)
             return "RIGHT";
         if (Position.X > destination.X)
@@ -165,12 +214,21 @@ public abstract class Tile
         return null;
     }
 
+    public IEnumerable<Tile> GetAdjacentSquares(List<Tile> map)
+    {
+        var proposedLocations = new List<Tile>();
+
+        Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X && _.Position.Y == Position.Y - 1), proposedLocations);
+        Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X && _.Position.Y == Position.Y + 1), proposedLocations);
+        Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X - 1 && _.Position.Y == Position.Y), proposedLocations);
+        Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X + 1 && _.Position.Y == Position.Y), proposedLocations);
+
+        return proposedLocations;
+    }
+
     public static Tile Create(char letter, int x, int y)
     {
         var position = new Position(x, y);
-
-        //if (position.XY == "12 6")
-        //Console.Error.WriteLine($"{position.XY}: {letter}");
 
         switch (letter)
         {
@@ -218,11 +276,18 @@ public class Position
     }
 
     public int Manhattan(Position p2) => Math.Abs(X - p2.X) + Math.Abs(Y - p2.Y);
+
+    public IEnumerable<Position> GetAdjacent(List<Position> map)
+    {
+        yield return map.FirstOrDefault(_ => _.X == X && _.Y == Y - 1);
+        yield return map.FirstOrDefault(_ => _.X == X && _.Y == Y + 1);
+        yield return map.FirstOrDefault(_ => _.X == X - 1 && _.Y == Y);
+        yield return map.FirstOrDefault(_ => _.X == X + 1 && _.Y == Y);
+    }
 }
 
 public class Kirk : Empty
 {
-
 }
 
 public class Unknown : Tile
@@ -245,8 +310,6 @@ public class Start : Tile
 {
 }
 
-
-
 public class AStarSearch
 {
     public List<Location> Map { get; }
@@ -256,9 +319,8 @@ public class AStarSearch
         Map = map;
     }
 
-    public IEnumerable<Location> Compute(Location start, Location end)
+    public Route Compute(Location start, Location end)
     {
-        Console.Error.WriteLine($"Starting to calculate path from {start.Position.XY} to {end.Position.XY}");
         var openList = new List<Location>();
         var closedList = new List<Location>();
         var hasFoundPath = false;
@@ -282,13 +344,11 @@ public class AStarSearch
             // if we added the destination to the closed list, we've found a path
             if (current.Position.XY == end.Position.XY)
             {
-                Console.Error.WriteLine($"Found a way to {end.Position.XY}");
                 hasFoundPath = true;
                 break;
             }
 
-            var adjacentSquares = GetWalkableAdjacentSquares(current, Map).ToList();
-            Console.Error.WriteLine($"{adjacentSquares.Count} possibilities for {current.Position.XY}: {string.Join(",", adjacentSquares.Select(_ => _.Position.XY))}");
+            var adjacentSquares = current.GetAdjacentSquares(Map).Where(_ => !_.IsWall).ToList();
             movementCost++;
 
             foreach (var adjacentSquare in adjacentSquares)
@@ -307,8 +367,6 @@ public class AStarSearch
                     adjacentSquare.CostToDestination = adjacentSquare.Position.Manhattan(end.Position);
                     adjacentSquare.Parent = current;
 
-                    //Console.Error.WriteLine($"Adding {current.Position.XY} as parent of {adjacentSquare.Position.XY}");
-
                     // and add it to the open list
                     openList.Insert(0, adjacentSquare);
                 }
@@ -325,14 +383,13 @@ public class AStarSearch
         }
 
         if (!hasFoundPath)
-            return null;
+            return new Route();
 
         var result = new List<Location>();
         var currentResult = end;
 
         while (currentResult != null)
         {
-            Console.Error.WriteLine($"Adding {currentResult.Position.XY} to list");
             result.Add(currentResult);
             currentResult = currentResult.Parent;
         }
@@ -340,27 +397,12 @@ public class AStarSearch
         result.Reverse();
         result.Remove(start);
 
-        Console.Error.WriteLine($"Calculated path: {string.Join("->", result.Select(x => x.Position.XY))}");
+        var route = new Route
+        {
+            Positions = result.Select(x => x.Position).ToList()
+        };
 
-        return result;
-    }
-
-    private static IEnumerable<Location> GetWalkableAdjacentSquares(Location current, List<Location> map)
-    {
-        var proposedLocations = new List<Location>();
-
-        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == current.Position.X && _.Position.Y == current.Position.Y - 1), proposedLocations);
-        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == current.Position.X && _.Position.Y == current.Position.Y + 1), proposedLocations);
-        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == current.Position.X - 1 && _.Position.Y == current.Position.Y), proposedLocations);
-        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == current.Position.X + 1 && _.Position.Y == current.Position.Y), proposedLocations);
-
-        return proposedLocations.Where(_ => !_.IsWall);
-    }
-
-    private static void AddIfNotNull<T>(T item, List<T> list)
-    {
-        if (item != null)
-            list.Add(item);
+        return route;
     }
 
     public class Location
@@ -388,93 +430,31 @@ public class AStarSearch
         public int CostToDestination { get; set; }
 
         public Location Parent { get; set; }
+
+        public IEnumerable<Location> GetAdjacentSquares(List<Location> map)
+        {
+            var proposedLocations = new List<Location>();
+
+            Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X && _.Position.Y == Position.Y - 1), proposedLocations);
+            Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X && _.Position.Y == Position.Y + 1), proposedLocations);
+            Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X - 1 && _.Position.Y == Position.Y), proposedLocations);
+            Helper.AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X + 1 && _.Position.Y == Position.Y), proposedLocations);
+
+            return proposedLocations;
+        }
+    }
+
+    public class Route
+    {
+        public List<Position> Positions { get; set; } = new List<Position>();
+
+        public bool IsValid => Positions.Any();
+
+        public int Distance => Positions.Count;
+
+        public override string ToString()
+        {
+            return $"[Distance: {Distance}] {string.Join("->", Positions.Select(x => x.XY))}";
+        }
     }
 }
-
-
-//using System;
-//using System.Collections.Generic;
-//using System.Diagnostics;
-//using System.Linq;
-//using System.Text;
-//using System.Threading.Tasks;
-//using Common;
-
-//namespace MyDjikstra
-//{
-//    public class SearchEngine
-//    {
-//        public event EventHandler Updated;
-//        private void OnUpdated()
-//        {
-//            Updated?.Invoke(null, EventArgs.Empty);
-//        }
-//        public Map Map { get; set; }
-//        public Node Start { get; set; }
-//        public Node End { get; set; }
-//        public int NodeVisits { get; private set; }
-//        public double ShortestPathLength { get; set; }
-//        public double ShortestPathCost { get; private set; }
-
-//        public SearchEngine(Map map)
-//        {
-//            Map = map;
-//            End = map.EndNode;
-//            Start = map.StartNode;
-//        }
-
-//        private void BuildShortestPath(List<Node> list, Node node)
-//        {
-//            if (node.NearestToStart == null)
-//                return;
-//            list.Add(node.NearestToStart);
-//            ShortestPathLength += node.Connections.Single(x => x.ConnectedNode == node.NearestToStart).Length;
-//            ShortestPathCost += node.Connections.Single(x => x.ConnectedNode == node.NearestToStart).Cost;
-//            BuildShortestPath(list, node.NearestToStart);
-//        }
-
-//        public List<Node> GetShortestPathAstart()
-//        {
-//            foreach (var node in Map.Nodes)
-//                node.StraightLineDistanceToEnd = node.StraightLineDistanceTo(End);
-//            AstarSearch();
-//            var shortestPath = new List<Node>();
-//            shortestPath.Add(End);
-//            BuildShortestPath(shortestPath, End);
-//            shortestPath.Reverse();
-//            return shortestPath;
-//        }
-
-//        private void AstarSearch()
-//        {
-//            NodeVisits = 0;
-//            Start.MinCostToStart = 0;
-//            var prioQueue = new List<Node>();
-//            prioQueue.Add(Start);
-//            do
-//            {
-//                prioQueue = prioQueue.OrderBy(x => x.MinCostToStart + x.StraightLineDistanceToEnd).ToList();
-//                var node = prioQueue.First();
-//                prioQueue.Remove(node);
-//                NodeVisits++;
-//                foreach (var cnn in node.Connections.OrderBy(x => x.Cost))
-//                {
-//                    var childNode = cnn.ConnectedNode;
-//                    if (childNode.Visited)
-//                        continue;
-//                    if (childNode.MinCostToStart == null ||
-//                        node.MinCostToStart + cnn.Cost < childNode.MinCostToStart)
-//                    {
-//                        childNode.MinCostToStart = node.MinCostToStart + cnn.Cost;
-//                        childNode.NearestToStart = node;
-//                        if (!prioQueue.Contains(childNode))
-//                            prioQueue.Add(childNode);
-//                    }
-//                }
-//                node.Visited = true;
-//                if (node == End)
-//                    return;
-//            } while (prioQueue.Any());
-//        }
-//    }
-//}
