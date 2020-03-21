@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnleashTheGeek", "UnleashTh
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LeLabyrinthe", "LeLabyrinthe\LeLabyrinthe.csproj", "{CDBC124D-04B7-404C-B3D1-ACAB53A211B4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OceanOfCode", "OceanOfCode\OceanOfCode.csproj", "{B8A16C7C-DEF8-464E-BD28-C0B325DA72E5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,10 @@ Global
 		{CDBC124D-04B7-404C-B3D1-ACAB53A211B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CDBC124D-04B7-404C-B3D1-ACAB53A211B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CDBC124D-04B7-404C-B3D1-ACAB53A211B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8A16C7C-DEF8-464E-BD28-C0B325DA72E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8A16C7C-DEF8-464E-BD28-C0B325DA72E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8A16C7C-DEF8-464E-BD28-C0B325DA72E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8A16C7C-DEF8-464E-BD28-C0B325DA72E5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
