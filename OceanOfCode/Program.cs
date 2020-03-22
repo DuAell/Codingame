@@ -152,15 +152,21 @@ namespace OceanOfCode
 
         private static void UpdateEnnemyPosition(string opponentOrders)
         {
-            var orders = opponentOrders.Split('|').Select(_ => _.Trim());
-            foreach (var order in orders)
+            var orders = opponentOrders.Split('|').Select(_ => _.Trim()).ToList();
+
+            // First, process TORPEDO
+            var order = orders.FirstOrDefault(_ => _.StartsWith("TORPEDO "));
+            if (order != null)
             {
-                if (order.StartsWith("MOVE "))
-                {
-                    UpdateEnnemyPosition_MoveTheMap(GetDirection(order.Substring(5, 1)));
-                }
+                UpdateEnnemyPosition_Torpedo(order.Replace("TORPEDO ", string.Empty));
             }
 
+            order = orders.FirstOrDefault(_ => _.StartsWith("MOVE "));
+            if (order != null)
+            {
+                UpdateEnnemyPosition_MoveTheMap(GetDirection(order.Substring("MOVE ".Length, 1)));
+            }
+            
             Console.Error.WriteLine($"Ennemy can be in {Ennemy.TileInfos.Count(_ => _.CanBeThere)} positions");
         }
 
@@ -215,6 +221,11 @@ namespace OceanOfCode
             
             canBeThereToFalse.ForEach(_ => _.CanBeThere = false);
             canBeThereToTrue.ForEach(_ => _.CanBeThere = true);
+        }
+
+        private static void UpdateEnnemyPosition_Torpedo(string position)
+        {
+            Ennemy.TileInfos.Where(_ => _.Tile.Manhattan(new Position(int.Parse(position.Split(' ')[0]), int.Parse(position.Split(' ')[1]))) > 4).ToList().ForEach(_ => _.CanBeThere = false);
         }
     }
 
