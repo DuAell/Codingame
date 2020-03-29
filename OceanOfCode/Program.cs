@@ -25,6 +25,23 @@ namespace OceanOfCode
 
         public static Player Ennemy { get; set; }
 
+        public static string GetDirectionValue(Direction direction)
+        {
+            switch (direction)
+            {
+                case Direction.North:
+                    return "N";
+                case Direction.South:
+                    return "S";
+                case Direction.Est:
+                    return "E";
+                case Direction.West:
+                    return "W";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
+            }
+        }
+
         public static void Play(string initData = null, string turnData = null, string startPositionData = null)
         {
             var initDataInputProcessor = new InputProcessor(initData);
@@ -95,39 +112,83 @@ namespace OceanOfCode
 
             ShowMapOfPossibleEnnemyPositions();
 
+            var charge = "TORPEDO";
+            if (Me.TorpedoCharges >= 3)
+                charge = "SILENCE";
+
             var outputs = new List<string>();
-            if (Me.CanGo(Direction.North))
-                outputs.Add("MOVE N TORPEDO");
-            else if (Me.CanGo(Direction.Est))
-                outputs.Add("MOVE E TORPEDO");
-            else if (Me.CanGo(Direction.South))
-                outputs.Add("MOVE S TORPEDO");
-            else if (Me.CanGo(Direction.West))
-                outputs.Add("MOVE W TORPEDO");
-            else
+            foreach (var direction in Enum.GetValues(typeof(Direction)).Cast<Direction>())
+            {
+                if (Me.CanGo(direction))
+                {
+                    outputs.Add(Move(direction, charge));
+                    break;
+                }
+            }
+
+            // No move possible, then surface
+            if (!outputs.Any())
             {
                 outputs.Add("SURFACE");
                 Me.TileInfos.ForEach(_ => _.HasBeenVisited = false);
             }
-
+            
             var ennemyPossiblePositions = Ennemy.TileInfos.Where(_ => _.CanBeThere).ToList();
 
-            if (torpedoCooldown <= 0 && ennemyPossiblePositions.Count < 10)
+            if (torpedoCooldown <= 0 && ennemyPossiblePositions.Count < 10 && Me.TorpedoCharges >= 3)
             {
                 // No matter if I shot myself, I will kill him
                 if (ennemyPossiblePositions.Count == 1 && Me.Life > 1 && Ennemy.Life <= 2 && ennemyPossiblePositions.First().Tile.Manhattan(Me) <= 4)
                 {
                     outputs.Add($"TORPEDO {Ennemy.TileInfos.First(_ => _.CanBeThere).Tile}");
+                    Me.TorpedoCharges = 0;
                 }
                 else
                 {
                     var fireTarget = ennemyPossiblePositions.Where(_ => _.Tile.Manhattan(Me) <= 4 && _.Tile.Manhattan(Me) > 2).OrderBy(_ => Guid.NewGuid()).FirstOrDefault();
                     if (fireTarget != null)
+                    {
                         outputs.Add($"TORPEDO {fireTarget.Tile}");
+                        Me.TorpedoCharges = 0;
+                    }
+                }
+            }
+
+            if (silenceCooldown <= 0 && Me.SilenceCharges >= 6)
+            {
+                var silenceDone = false;
+                for (var distance = 4; distance > 0; distance--)
+                {
+                    if (silenceDone) break;
+                    foreach (var direction in Enum.GetValues(typeof(Direction)).Cast<Direction>())
+                    {
+                        if (Me.CanGo(direction, distance))
+                        {
+                            outputs.Clear();
+                            outputs.Add($"SILENCE {GetDirectionValue(direction)} {distance}");
+                            Me.SilenceCharges = 0;
+
+                            for (int i = 1; i <= distance; i++)
+                            {
+                                Me.GetTileInfo(Map.GetAdjacent(Me, direction, i)).HasBeenVisited = true;
+                            }
+
+                            silenceDone = true;
+                            break;
+                        }
+                    }
                 }
             }
 
             Console.WriteLine(string.Join(" | ", outputs));
+        }
+
+        private static string Move(Direction direction, string charge)
+        {
+            var result = $"MOVE {GetDirectionValue(direction)} {charge}";
+            if (charge == "TORPEDO") Me.TorpedoCharges++;
+            if (charge == "SILENCE") Me.SilenceCharges++;
+            return result;
         }
 
         private static void ShowMapOfPossibleEnnemyPositions()
@@ -159,6 +220,18 @@ namespace OceanOfCode
             if (order != null)
             {
                 UpdateEnnemyPosition_Torpedo(order.Replace("TORPEDO ", string.Empty));
+            }
+
+            order = orders.FirstOrDefault(_ => _.StartsWith("SURFACE "));
+            if (order != null)
+            {
+                UpdateEnnemyPosition_Surface(order.Replace("SURFACE ", string.Empty));
+            }
+
+            order = orders.FirstOrDefault(_ => _.StartsWith("SILENCE"));
+            if (order != null)
+            {
+                UpdateEnnemyPosition_Silence();
             }
 
             order = orders.FirstOrDefault(_ => _.StartsWith("MOVE "));
@@ -227,6 +300,19 @@ namespace OceanOfCode
         {
             Ennemy.TileInfos.Where(_ => _.Tile.Manhattan(new Position(int.Parse(position.Split(' ')[0]), int.Parse(position.Split(' ')[1]))) > 4).ToList().ForEach(_ => _.CanBeThere = false);
         }
+
+        private static void UpdateEnnemyPosition_Surface(string sector)
+        {
+            var sectorTiles = Map.GetTilesOfSector(int.Parse(sector)).ToList();
+            Ennemy.TileInfos.Where(_ => !sectorTiles.Contains(_.Tile)).ToList().ForEach(_ => _.CanBeThere = false);
+        }
+        private static void UpdateEnnemyPosition_Silence()
+        {
+            foreach (var tileInfo in Ennemy.TileInfos.Where(_ => _.CanBeThere).ToList())
+            {
+                Ennemy.TileInfos.Where(_ => (Math.Abs(_.Tile.X - tileInfo.Tile.X) <= 4 && _.Tile.Y == tileInfo.Tile.Y || _.Tile.X == tileInfo.Tile.X && Math.Abs(_.Tile.Y - tileInfo.Tile.Y) <= 4) && _.Tile.IsWater).ToList().ForEach(_ => _.CanBeThere = true);
+            }
+        }
     }
 
     public class Player : Position
@@ -242,13 +328,23 @@ namespace OceanOfCode
             => TileInfos.FirstOrDefault(_ => _.Tile == tile);
 
         public int Life { get; set; }
+        public int TorpedoCharges { get; set; }
+        public int SilenceCharges { get; set; }
 
-        public bool CanGo(Direction direction)
+        public bool CanGo(Direction direction, int distance = 1)
         {
-            var expectedDestination = Game.Map.GetAdjacent(this, direction);
-            var result = expectedDestination?.IsWater == true && !GetTileInfo(expectedDestination).HasBeenVisited;
+            var result = true;
+            for (int i = 1; i <= distance; i++)
+            {
+                var expectedDestination = Game.Map.GetAdjacent(this, direction, i);
+                result &= expectedDestination?.IsWater == true && !GetTileInfo(expectedDestination).HasBeenVisited;
+                Console.Error.WriteLine($"{(result ? "Can" : "Cannot")} go {direction}(distance {distance}) ({expectedDestination}). Water: {expectedDestination?.IsWater} / Already visited: {GetTileInfo(expectedDestination)?.HasBeenVisited}");
+            }
 
-            Console.Error.WriteLine($"{(result ? "Can" : "Cannot")} go {direction} ({expectedDestination}). Water: {expectedDestination?.IsWater} / Already visited: {GetTileInfo(expectedDestination)?.HasBeenVisited}");
+            //var expectedDestination = Game.Map.GetAdjacent(this, direction, distance);
+            //var result = expectedDestination?.IsWater == true && !GetTileInfo(expectedDestination).HasBeenVisited;
+
+            //Console.Error.WriteLine($"{(result ? "Can" : "Cannot")} go {direction}(distance {distance}) ({expectedDestination}). Water: {expectedDestination?.IsWater} / Already visited: {GetTileInfo(expectedDestination)?.HasBeenVisited}");
 
             return result;
         }
@@ -261,16 +357,52 @@ namespace OceanOfCode
 
         public List<Tile> Tiles { get; set; } = new List<Tile>();
 
-        public Tile GetAdjacent(Position position, Direction direction)
+        public IEnumerable<Tile> GetTilesOfSector(int sector)
+        {
+            var xMod = 0;
+            var yMod = 0;
+
+            switch (sector)
+            {
+                case 4:
+                case 5:
+                case 6:
+                    yMod = 1;
+                    break;
+                case 7:
+                case 8:
+                case 9:
+                    yMod = 2;
+                    break;
+            }
+
+            switch (sector)
+            {
+                case 2:
+                case 5:
+                case 8:
+                    xMod = 1;
+                    break;
+                case 3:
+                case 6:
+                case 9:
+                    xMod = 2;
+                    break;
+            }
+
+            return Tiles.Where(_ => _.X >= 0 + 5 * xMod && _.X <= 4 + 5 * xMod && _.Y >= 0 + 5 * yMod && _.Y <= 4 + 5 * yMod);
+        }
+
+        public Tile GetAdjacent(Position position, Direction direction, int distance = 1)
         {
             int xModifier;
             switch (direction)
             {
                 case Direction.Est:
-                    xModifier = 1;
+                    xModifier = distance;
                     break;
                 case Direction.West:
-                    xModifier = -1;
+                    xModifier = -distance;
                     break;
                 default:
                     xModifier = 0;
@@ -281,10 +413,10 @@ namespace OceanOfCode
             switch (direction)
             {
                 case Direction.South:
-                    yModifier = 1;
+                    yModifier = distance;
                     break;
                 case Direction.North:
-                    yModifier = -1;
+                    yModifier = -distance;
                     break;
                 default:
                     yModifier = 0;
