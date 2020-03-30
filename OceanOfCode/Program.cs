@@ -126,13 +126,6 @@ namespace OceanOfCode
                 }
             }
 
-            // No move possible, then surface
-            if (!outputs.Any())
-            {
-                outputs.Add("SURFACE");
-                Me.TileInfos.ForEach(_ => _.HasBeenVisited = false);
-            }
-            
             var ennemyPossiblePositions = Ennemy.TileInfos.Where(_ => _.CanBeThere).ToList();
 
             if (torpedoCooldown <= 0 && ennemyPossiblePositions.Count < 10 && Me.TorpedoCharges >= 3)
@@ -180,6 +173,13 @@ namespace OceanOfCode
                 }
             }
 
+            // No move possible, then surface
+            if (!outputs.Any())
+            {
+                outputs.Add("SURFACE");
+                Me.TileInfos.ForEach(_ => _.HasBeenVisited = false);
+            }
+
             Console.WriteLine(string.Join(" | ", outputs));
         }
 
@@ -193,16 +193,29 @@ namespace OceanOfCode
 
         private static void ShowMapOfPossibleEnnemyPositions()
         {
-            for (var row = 0; row <= Ennemy.TileInfos.Max(_ => _.Tile.Y); row++)
+            for (var row = 0; row <= Map.Height - 1; row++)
             {
                 var line = string.Empty;
-                for (var column = 0; column <= Ennemy.TileInfos.Max(_ => _.Tile.X); column++)
+                for (var column = 0; column <= Map.Width - 1; column++)
                 {
                     var tileInfo = Ennemy.GetTileInfo(Map.Tiles.First(_ => _.X == column && _.Y == row));
                     if (!tileInfo.Tile.IsWater)
                         line += "x";
                     else if (tileInfo.CanBeThere)
                         line += "?";
+                    else
+                        line += ".";
+                }
+
+                line += " | ";
+
+                for (var column = 0; column <= Map.Width - 1; column++)
+                {
+                    var tileInfo = Me.GetTileInfo(Map.Tiles.First(_ => _.X == column && _.Y == row));
+                    if (!tileInfo.Tile.IsWater)
+                        line += "x";
+                    else if (tileInfo.HasBeenVisited)
+                        line += "V";
                     else
                         line += ".";
                 }
@@ -337,8 +350,9 @@ namespace OceanOfCode
             for (int i = 1; i <= distance; i++)
             {
                 var expectedDestination = Game.Map.GetAdjacent(this, direction, i);
-                result &= expectedDestination?.IsWater == true && !GetTileInfo(expectedDestination).HasBeenVisited;
-                Console.Error.WriteLine($"{(result ? "Can" : "Cannot")} go {direction}(distance {distance}) ({expectedDestination}). Water: {expectedDestination?.IsWater} / Already visited: {GetTileInfo(expectedDestination)?.HasBeenVisited}");
+                if (expectedDestination == null) return false;
+                result &= expectedDestination.IsWater && !GetTileInfo(expectedDestination).HasBeenVisited;
+                Console.Error.WriteLine($"{(result ? "Can" : "Cannot")} go {direction}(distance {distance}) ({expectedDestination}). Water: {expectedDestination.IsWater} / Already visited: {GetTileInfo(expectedDestination).HasBeenVisited}");
             }
 
             //var expectedDestination = Game.Map.GetAdjacent(this, direction, distance);
