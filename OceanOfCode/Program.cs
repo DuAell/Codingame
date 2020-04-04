@@ -25,6 +25,8 @@ namespace OceanOfCode
 
         public static Player Ennemy { get; set; }
 
+        public static int LastSonarSectorResearched { get; set; }
+
         public static string GetDirectionValue(Direction direction)
         {
             switch (direction)
@@ -108,25 +110,57 @@ namespace OceanOfCode
 
             inputProcessor.WriteDebugData();
 
-            UpdateEnnemyPosition(opponentOrders);
+            UpdateEnnemyPosition(opponentOrders, sonarResult);
 
             ShowMapOfPossibleEnnemyPositions();
 
+            var ennemyPossiblePositions = Ennemy.TileInfos.Where(_ => _.CanBeThere).ToList();
+
             var charge = "TORPEDO";
             if (Me.TorpedoCharges >= 3)
-                charge = "SILENCE";
+                if (ennemyPossiblePositions.Count > 20)
+                    charge = "SONAR";
+                else
+                    charge = "SILENCE";
 
             var outputs = new List<string>();
-            foreach (var direction in Enum.GetValues(typeof(Direction)).Cast<Direction>())
+            // TODO : can be improved : can move and silence the same turn, but needs to manually change my position
+            if (silenceCooldown <= 0 && Me.SilenceCharges >= 6)
             {
-                if (Me.CanGo(direction))
+                var silenceDone = false;
+                for (var distance = 4; distance > 0; distance--)
                 {
-                    outputs.Add(Move(direction, charge));
-                    break;
+                    if (silenceDone) break;
+                    foreach (var direction in Enum.GetValues(typeof(Direction)).Cast<Direction>())
+                    {
+                        if (Me.CanGo(direction, distance))
+                        {
+                            //outputs.Clear();
+                            outputs.Add($"SILENCE {GetDirectionValue(direction)} {distance}");
+                            Me.SilenceCharges = 0;
+
+                            for (int i = 1; i <= distance; i++)
+                            {
+                                Me.GetTileInfo(Map.GetAdjacent(Me, direction, i)).HasBeenVisited = true;
+                            }
+
+                            silenceDone = true;
+                            break;
+                        }
+                    }
                 }
             }
-
-            var ennemyPossiblePositions = Ennemy.TileInfos.Where(_ => _.CanBeThere).ToList();
+            else
+            {
+                foreach (var direction in Enum.GetValues(typeof(Direction)).Cast<Direction>())
+                {
+                    if (Me.CanGo(direction))
+                    {
+                        outputs.Add(Move(direction, charge));
+                        break;
+                    }
+                }
+            }
 
             if (torpedoCooldown <= 0 && ennemyPossiblePositions.Count < 10 && Me.TorpedoCharges >= 3)
             {
@@ -147,30 +181,17 @@ namespace OceanOfCode
                 }
             }
 
-            if (silenceCooldown <= 0 && Me.SilenceCharges >= 6)
+            if (sonarCooldown <= 0 && ennemyPossiblePositions.Count > 20 && Me.SonarCharges >= 4)
             {
-                var silenceDone = false;
-                for (var distance = 4; distance > 0; distance--)
+                var maxTiles = 0;
+                LastSonarSectorResearched = 0;
+                for (var i = 1; i <= 9; i++)
                 {
-                    if (silenceDone) break;
-                    foreach (var direction in Enum.GetValues(typeof(Direction)).Cast<Direction>())
-                    {
-                        if (Me.CanGo(direction, distance))
-                        {
-                            outputs.Clear();
-                            outputs.Add($"SILENCE {GetDirectionValue(direction)} {distance}");
-                            Me.SilenceCharges = 0;
-
-                            for (int i = 1; i <= distance; i++)
-                            {
-                                Me.GetTileInfo(Map.GetAdjacent(Me, direction, i)).HasBeenVisited = true;
-                            }
-
-                            silenceDone = true;
-                            break;
-                        }
-                    }
+                    var count = Map.GetTilesOfSector(i).Count(t => Ennemy.GetTileInfo(t).CanBeThere);
+                    if (count > maxTiles)
+                        LastSonarSectorResearched = i;
                 }
+                outputs.Add($"SONAR {LastSonarSectorResearched}");
             }
 
             // No move possible, then surface
@@ -188,6 +209,7 @@ namespace OceanOfCode
             var result = $"MOVE {GetDirectionValue(direction)} {charge}";
             if (charge == "TORPEDO") Me.TorpedoCharges++;
             if (charge == "SILENCE") Me.SilenceCharges++;
+            if (charge == "SONAR") Me.SonarCharges++;
             return result;
         }
 
@@ -224,33 +246,25 @@ namespace OceanOfCode
             }
         }
 
-        private static void UpdateEnnemyPosition(string opponentOrders)
+        private static void UpdateEnnemyPosition(string opponentOrders, string sonarResult)
         {
+            if (sonarResult == "Y")
+                Ennemy.TileInfos.Except(Map.GetTilesOfSector(LastSonarSectorResearched).Select(Ennemy.GetTileInfo)).ToList().ForEach(_ => _.CanBeThere = false);
+            else if (sonarResult == "N")
+                Map.GetTilesOfSector(LastSonarSectorResearched).Select(Ennemy.GetTileInfo).ToList().ForEach(_ => _.CanBeThere = false);
+
             var orders = opponentOrders.Split('|').Select(_ => _.Trim()).ToList();
 
-            // First, process TORPEDO
-            var order = orders.FirstOrDefault(_ => _.StartsWith("TORPEDO "));
-            if (order != null)
+            foreach (var order in orders)
             {
-                UpdateEnnemyPosition_Torpedo(order.Replace("TORPEDO ", string.Empty));
-            }
-
-            order = orders.FirstOrDefault(_ => _.StartsWith("SURFACE "));
-            if (order != null)
-            {
-                UpdateEnnemyPosition_Surface(order.Replace("SURFACE ", string.Empty));
-            }
-
-            order = orders.FirstOrDefault(_ => _.StartsWith("SILENCE"));
-            if (order != null)
-            {
-                UpdateEnnemyPosition_Silence();
-            }
-
-            order = orders.FirstOrDefault(_ => _.StartsWith("MOVE "));
-            if (order != null)
-            {
-                UpdateEnnemyPosition_MoveTheMap(GetDirection(order.Substring("MOVE ".Length, 1)));
+                if (order.StartsWith("TORPEDO "))
+                    UpdateEnnemyPosition_Torpedo(order.Replace("TORPEDO ", string.Empty));
+                else if (order.StartsWith("SURFACE "))
+                    UpdateEnnemyPosition_Surface(order.Replace("SURFACE ", string.Empty));
+                else if (order.StartsWith("SILENCE"))
+                    UpdateEnnemyPosition_Silence();
+                else if (order.StartsWith("MOVE "))
+                    UpdateEnnemyPosition_MoveTheMap(GetDirection(order.Substring("MOVE ".Length, 1)));
             }
             
             Console.Error.WriteLine($"Ennemy can be in {Ennemy.TileInfos.Count(_ => _.CanBeThere)} positions");
@@ -343,6 +357,7 @@ namespace OceanOfCode
         public int Life { get; set; }
         public int TorpedoCharges { get; set; }
         public int SilenceCharges { get; set; }
+        public int SonarCharges { get; set; }
 
         public bool CanGo(Direction direction, int distance = 1)
         {
