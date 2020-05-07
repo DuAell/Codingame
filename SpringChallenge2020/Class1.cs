@@ -12,27 +12,29 @@ namespace SpringChallenge2020
     {
         public static void Main(string[] args)
         {
-            string[] inputs;
-            inputs = Console.ReadLine().Split(' ');
+            var initInputProcessor = new InputProcessor();
+            var inputs = initInputProcessor.ReadLine().Split(' ');
             int width = int.Parse(inputs[0]); // size of the grid
             int height = int.Parse(inputs[1]); // top left corner is (x=0, y=0)
             for (int i = 0; i < height; i++)
             {
-                string row = Console.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
+                string row = initInputProcessor.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
             }
 
             // game loop
             while (true)
             {
+                var gameTurnInputProcessor = new InputProcessor();
+
                 var pacs = new List<Pac>();
 
-                inputs = Console.ReadLine().Split(' ');
+                inputs = gameTurnInputProcessor.ReadLine().Split(' ');
                 int myScore = int.Parse(inputs[0]);
                 int opponentScore = int.Parse(inputs[1]);
                 int visiblePacCount = int.Parse(Console.ReadLine()); // all your pacs and enemy pacs in sight
                 for (int i = 0; i < visiblePacCount; i++)
                 {
-                    inputs = Console.ReadLine().Split(' ');
+                    inputs = gameTurnInputProcessor.ReadLine().Split(' ');
                     int pacId = int.Parse(inputs[0]); // pac number (unique within a team)
                     bool mine = inputs[1] != "0"; // true if this pac is yours
                     int x = int.Parse(inputs[2]); // position in the grid
@@ -48,21 +50,25 @@ namespace SpringChallenge2020
 
                 for (int i = 0; i < visiblePelletCount; i++)
                 {
-                    inputs = Console.ReadLine().Split(' ');
+                    inputs = gameTurnInputProcessor.ReadLine().Split(' ');
                     visiblePellets.Add(
                         new Pellet(int.Parse(inputs[0]), int.Parse(inputs[1]))
                             {Value = int.Parse(inputs[2])}
                     );
                 }
 
+                initInputProcessor.WriteDebugData();
+                gameTurnInputProcessor.WriteDebugData();
+
                 // Write an action using Console.WriteLine()
                 // To debug: Console.Error.WriteLine("Debug messages...");
                 foreach (var pac in pacs.Where(_ => _.IsMine))
                 {
-                    var closest = visiblePellets.Where(_ =>
-                            _.Value == visiblePellets.Max(v => v.Value) &&
-                            !pacs.Where(p => p.IsMine).Select(p => p.Destination).Contains(_)) // Exclude destinations already set for other pacs
-                        .OrderBy(_ => _.Manhattan(pac)).First();
+                    var closest = visiblePellets
+                        .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.Destination)
+                            .Contains(_)) // Exclude destinations already set for other pacs
+                        .OrderByDescending(_ => _.Value).ThenBy(_ => _.Manhattan(pac))
+                        .First();
 
                     pac.Destination = closest;
                 }
