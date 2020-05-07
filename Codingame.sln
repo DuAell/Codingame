@@ -3,35 +3,37 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.28315.86
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BottersOfTheGalaxy", "BottersOfTheGalaxy\BottersOfTheGalaxy.csproj", "{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BottersOfTheGalaxy", "BottersOfTheGalaxy\BottersOfTheGalaxy.csproj", "{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Code4Life", "Code4Life\Code4Life.csproj", "{D195F6FC-394F-4BF2-9690-78D769B4CB79}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Code4Life", "Code4Life\Code4Life.csproj", "{D195F6FC-394F-4BF2-9690-78D769B4CB79}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodersStrikeBack", "CodersStrikeBack\CodersStrikeBack.csproj", "{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodersStrikeBack", "CodersStrikeBack\CodersStrikeBack.csproj", "{8D2BD92E-90BC-4CD7-88C0-AC19938D57D1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BottersOfTheGalaxy.Test", "BottersOfTheGalaxy.Test\BottersOfTheGalaxy.Test.csproj", "{B96BCE9F-A474-448B-B8FE-31B96A5F4A43}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BottersOfTheGalaxy.Test", "BottersOfTheGalaxy.Test\BottersOfTheGalaxy.Test.csproj", "{B96BCE9F-A474-448B-B8FE-31B96A5F4A43}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeRoyale", "CodeRoyale\CodeRoyale.csproj", "{93D22684-0118-4DB5-A82B-DB2D4F409877}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeRoyale", "CodeRoyale\CodeRoyale.csproj", "{93D22684-0118-4DB5-A82B-DB2D4F409877}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeRoyale.Test", "CodeRoyale.Test\CodeRoyale.Test.csproj", "{DE27740F-4B21-49F8-AD80-915E7E36EB36}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeRoyale.Test", "CodeRoyale.Test\CodeRoyale.Test.csproj", "{DE27740F-4B21-49F8-AD80-915E7E36EB36}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XmasRush", "XmasRush\XmasRush.csproj", "{292DE8FF-A644-433E-8A85-EB2E4D281E4E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "XmasRush", "XmasRush\XmasRush.csproj", "{292DE8FF-A644-433E-8A85-EB2E4D281E4E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XmasRush.Test", "XmasRush.Test\XmasRush.Test.csproj", "{C8A6DC9C-D578-407D-88D9-8734FC7BDE5F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "XmasRush.Test", "XmasRush.Test\XmasRush.Test.csproj", "{C8A6DC9C-D578-407D-88D9-8734FC7BDE5F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeALaMode", "CodeALaMode\CodeALaMode.csproj", "{AA8484CE-177F-46A9-9E68-FCB715975636}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeALaMode", "CodeALaMode\CodeALaMode.csproj", "{AA8484CE-177F-46A9-9E68-FCB715975636}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Helper", "Helper\Helper.csproj", "{D01CF331-F449-4844-A08A-2A1837BB29DD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Helper", "Helper\Helper.csproj", "{D01CF331-F449-4844-A08A-2A1837BB29DD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CodeALaMode.Test", "CodeALaMode.Test\CodeALaMode.Test.csproj", "{C24C59EF-D1EA-44E3-9FA1-F59BAE802872}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CodeALaMode.Test", "CodeALaMode.Test\CodeALaMode.Test.csproj", "{C24C59EF-D1EA-44E3-9FA1-F59BAE802872}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnleashTheGeek", "UnleashTheGeek\UnleashTheGeek.csproj", "{2981BBE7-094E-4F07-B2CC-73F7E8F96826}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnleashTheGeek", "UnleashTheGeek\UnleashTheGeek.csproj", "{2981BBE7-094E-4F07-B2CC-73F7E8F96826}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LeLabyrinthe", "LeLabyrinthe\LeLabyrinthe.csproj", "{CDBC124D-04B7-404C-B3D1-ACAB53A211B4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LeLabyrinthe", "LeLabyrinthe\LeLabyrinthe.csproj", "{CDBC124D-04B7-404C-B3D1-ACAB53A211B4}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OceanOfCode", "OceanOfCode\OceanOfCode.csproj", "{B8A16C7C-DEF8-464E-BD28-C0B325DA72E5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OceanOfCode.Test", "OceanOfCode.Test\OceanOfCode.Test.csproj", "{83962B5C-752A-4DF4-82A2-92EF4DAFA55A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OceanOfCode.Test", "OceanOfCode.Test\OceanOfCode.Test.csproj", "{83962B5C-752A-4DF4-82A2-92EF4DAFA55A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpringChallenge2020", "SpringChallenge2020\SpringChallenge2020.csproj", "{B930062A-A416-43B4-957B-8F9A62074B78}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -99,6 +101,10 @@ Global
 		{83962B5C-752A-4DF4-82A2-92EF4DAFA55A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{83962B5C-752A-4DF4-82A2-92EF4DAFA55A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{83962B5C-752A-4DF4-82A2-92EF4DAFA55A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B930062A-A416-43B4-957B-8F9A62074B78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B930062A-A416-43B4-957B-8F9A62074B78}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B930062A-A416-43B4-957B-8F9A62074B78}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B930062A-A416-43B4-957B-8F9A62074B78}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
