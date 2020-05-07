@@ -9,6 +9,8 @@ namespace Helper
     public class Position
     {
         public int X, Y;
+
+        public string XY => X + " " + Y;
         public Position(int x, int y)
         {
             X = x;
