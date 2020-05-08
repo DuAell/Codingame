@@ -43,4 +43,24 @@ namespace Helper
         Est,
         West
     }
+
+    public static class DirectionExtension
+    {
+        public static Direction GetOpposite(this Direction direction)
+        {
+            switch (direction)
+            {
+                case Direction.North:
+                    return Direction.South;
+                case Direction.West:
+                    return Direction.Est;
+                case Direction.Est:
+                    return Direction.West;
+                case Direction.South:
+                    return Direction.North;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
+            }
+        }
+    }
 }

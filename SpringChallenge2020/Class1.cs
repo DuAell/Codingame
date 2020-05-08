@@ -40,6 +40,7 @@ namespace SpringChallenge2020
                 while (true)
                 {
                     pacs.ForEach(_ => _.IsAlive = false);
+                    pacs.ForEach(_ => _.IsVisible = false);
                     if (turnDatas != null && turnDatas.Count == 0)
                         break;
                     var turnData = turnDatas?.Count > 0 ? turnDatas.Dequeue() : null;
@@ -67,6 +68,9 @@ namespace SpringChallenge2020
                         pac.Position = new Position(x, y);
                         pac.PacType = Enum.Parse<PacType>(typeId);
                         pac.IsAlive = true;
+                        pac.SpeedTurnsLeft = speedTurnsLeft;
+                        pac.AbilityCooldown = abilityCooldown;
+                        pac.IsVisible = true;
                     }
 
                     pacs.RemoveAll(_ => !_.IsAlive);
@@ -100,56 +104,55 @@ namespace SpringChallenge2020
                     // Remove pellets when tile is in line of sight
                     foreach (var pac in pacs.Where(_ => _.IsMine))
                     {
-                        void CheckTilesInSight(Direction direction)
+                        var tiles = map.GetTilesInSightFromAllDirections(pac.Position);
+                        foreach (var tile in tiles)
                         {
-                            for (int i = 1; i < 100; i++)
-                            {
-                                var tile = map.GetAdjacent(pac.Position, direction, i);
-                                if (tile?.IsWall != false) break;
-                                tile.Unknown = false;
-
-                                if (visiblePellets.All(_ => _.XY != tile.Position.XY))
-                                    tile.Pellet = null; // This tile is not in the list of visible pellets but is in line of sight. So it's empty
-                            }
+                            tile.Unknown = false;
+                            if (visiblePellets.All(_ => _.XY != tile.Position.XY))
+                                tile.Pellet = null; // This tile is not in the list of visible pellets but is in line of sight. So it's empty
                         }
-
-                        CheckTilesInSight(Direction.West);
-                        CheckTilesInSight(Direction.North);
-                        CheckTilesInSight(Direction.Est);
-                        CheckTilesInSight(Direction.South);
                     }
 
                     // Write an action using Console.WriteLine()
                     // To debug: Console.Error.WriteLine("Debug messages...");
                     foreach (var pac in pacs.Where(_ => _.IsMine))
                     {
-                        // Try to eat opponent
-                        //pacs.Single(e => e.Id == 1 && !e.IsMine).Position.Manhattan(pac.Position)
-                        var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.Position.Manhattan(pac.Position) <= 4);
+                        var tilesInSight = map.GetTilesInSightFromAllDirections(pac.Position);
+
+                        // Close to an opponent
+                        var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY));
                         if (opponent != null)
                         {
+                            // We have the correct type, try to eat him
                             if (opponent.GetBetterType() == pac.PacType)
                             {
                                 pac.Command = "MOVE";
                                 pac.CommandArgs = opponent.Position;
                             }
-                            else
+                            // Switch to correct type to eat him
+                            else if (pac.AbilityCooldown == 0)
                             {
                                 pac.Command = "SWITCH";
                                 pac.CommandArgs = opponent.GetBetterType();
                             }
+                            // Run away
+                            else
+                            {
+                                var evadingDirection = pac.Position.GetDirectionTo(opponent.Position).Value.GetOpposite();
+                                pac.Command = "MOVE";
+                                pac.CommandArgs = map.GetAdjacent(pac.Position, evadingDirection).Position;
+                            }
                         }
                         else
                         {
-                            var closest = map.Tiles.Where(_ => _.Pellet != null)
-                                .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
-                                    .Contains(_)) // Exclude destinations already set for other pacs
-                                .OrderByDescending(_ => _.Pellet.Value).ThenBy(_ => _.Position.Manhattan(pac.Position))
-                                .FirstOrDefault();
-
-                            if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
+                            // Use SPEED
+                            if (pac.AbilityCooldown == 0)
                             {
-                                // Had collision
+                                pac.Command = "SPEED";
+                            }
+                            // Had collision
+                            else if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
+                            {
                                 var collidingPac = pacs.FirstOrDefault(_ =>
                                     _.Id != pac.Id && _.Position.Manhattan(pac.Position) <= 2);
                                 if (collidingPac?.IsMine == true)
@@ -164,11 +167,18 @@ namespace SpringChallenge2020
                                     pac.CommandArgs = collidingPac.GetBetterType();
                                 }
                             }
+                            // Simple MOVE
                             else
                             {
+                                var closestPellet = map.Tiles.Where(_ => _.Pellet != null)
+                                    .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
+                                        .Contains(_)) // Exclude destinations already set for other pacs
+                                    .OrderByDescending(_ => _.Pellet.Value).ThenBy(_ => _.Position.Manhattan(pac.Position))
+                                    .FirstOrDefault();
+
                                 pac.Command = "MOVE";
                                 pac.CommandArgs =
-                                    closest?.Position ?? map.GetRandomTile().Position;
+                                    closestPellet?.Position ?? map.GetRandomTile().Position;
                             }
                         }
                     }
@@ -238,6 +248,27 @@ namespace SpringChallenge2020
 
                 return Tiles.FirstOrDefault(_ => _.Position.X == position.X + xModifier && _.Position.Y == position.Y + yModifier);
             }
+
+            public IEnumerable<Tile> GetTilesInSightFromAllDirections(Position position, int depth = 1000)
+            {
+                return GetTilesInSight(position, Direction.West, depth)
+                    .Union(GetTilesInSight(position, Direction.North, depth))
+                    .Union(GetTilesInSight(position, Direction.Est, depth))
+                    .Union(GetTilesInSight(position, Direction.South, depth));
+            }
+
+            public List<Tile> GetTilesInSight(Position position, Direction direction, int depth = 1000)
+            {
+                var tiles = new List<Tile>();
+
+                for (int i = 1; i < depth; i++)
+                {
+                    var tile = GetAdjacent(position, direction, i);
+                    if (tile?.IsWall != false) break;
+                    tiles.Add(tile);
+                }
+                return tiles;
+            }
         }
 
         public enum PacType
@@ -260,6 +291,9 @@ namespace SpringChallenge2020
 
             public PacType PacType { get; set; }
             public bool IsAlive { get; set; }
+            public int SpeedTurnsLeft { get; set; }
+            public int AbilityCooldown { get; set; }
+            public bool IsVisible { get; set; }
 
             public string GetFullCommand()
             {
@@ -521,6 +555,25 @@ namespace SpringChallenge2020
                 }
             }
         }
+    }
 
+    public static class DirectionExtension
+    {
+        public static Player.Direction GetOpposite(this Player.Direction direction)
+        {
+            switch (direction)
+            {
+                case Player.Direction.North:
+                    return Player.Direction.South;
+                case Player.Direction.West:
+                    return Player.Direction.Est;
+                case Player.Direction.Est:
+                    return Player.Direction.West;
+                case Player.Direction.South:
+                    return Player.Direction.North;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
+            }
+        }
     }
 }

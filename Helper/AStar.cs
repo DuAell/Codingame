@@ -53,6 +53,27 @@ namespace Helper
 
             return Tiles.FirstOrDefault(_ => _.Position.X == position.X + xModifier && _.Position.Y == position.Y + yModifier);
         }
+
+        public IEnumerable<Tile> GetTilesInSightFromAllDirections(Position position, int depth = 1000)
+        {
+            return GetTilesInSight(position, Direction.West, depth)
+                .Union(GetTilesInSight(position, Direction.North, depth))
+                .Union(GetTilesInSight(position, Direction.Est, depth))
+                .Union(GetTilesInSight(position, Direction.South, depth));
+        }
+
+        public List<Tile> GetTilesInSight(Position position, Direction direction, int depth = 1000)
+        {
+            var tiles = new List<Tile>();
+
+            for (int i = 1; i < depth; i++)
+            {
+                var tile = GetAdjacent(position, direction, i);
+                if (tile?.IsWall != false) break;
+                tiles.Add(tile);
+            }
+            return tiles;
+        }
     }
 
     public class Tile : AStarSearch.Location
