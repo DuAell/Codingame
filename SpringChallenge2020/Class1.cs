@@ -17,11 +17,11 @@ namespace SpringChallenge2020
 
         public static class Game
         {
-            public static void Play(string initData = null, string turnData = null)
+            public static void Play(string initData = null, Queue<string> turnDatas = null)
             {
                 var initInputProcessor = new InputProcessor(initData);
                 var inputs = initInputProcessor.ReadLine().Split(' ');
-                var map = new List<AStarSearch.Location>();
+                var map = new List<Tile>();
                 int width = int.Parse(inputs[0]); // size of the grid
                 int height = int.Parse(inputs[1]); // top left corner is (x=0, y=0)
                 for (int y = 0; y < height; y++)
@@ -29,7 +29,7 @@ namespace SpringChallenge2020
                     string row = initInputProcessor.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
                     for (var x = 0; x < width; x++)
                     {
-                        map.Add(new AStarSearch.Location(new Position(x, y), row[x] == '#'));
+                        map.Add(new Tile(new Position(x, y), row[x] == '#'));
                     }
                 }
 
@@ -39,6 +39,9 @@ namespace SpringChallenge2020
                 while (true)
                 {
                     pacs.ForEach(_ => _.IsAlive = false);
+                    if (turnDatas != null && turnDatas.Count == 0)
+                        break;
+                    var turnData = turnDatas?.Count > 0 ? turnDatas.Dequeue() : null;
                     var gameTurnInputProcessor = new InputProcessor(turnData);
 
                     inputs = gameTurnInputProcessor.ReadLine().Split(' ');
@@ -68,16 +71,27 @@ namespace SpringChallenge2020
                     pacs.RemoveAll(_ => !_.IsAlive);
 
                     var visiblePelletCount = int.Parse(gameTurnInputProcessor.ReadLine()); // all pellets in sight
-                    var visiblePellets = new List<Pellet>();
 
                     for (int i = 0; i < visiblePelletCount; i++)
                     {
                         inputs = gameTurnInputProcessor.ReadLine().Split(' ');
-                        visiblePellets.Add(
-                            new Pellet(int.Parse(inputs[0]), int.Parse(inputs[1]))
-                            { Value = int.Parse(inputs[2]) }
-                        );
+                        var x = int.Parse(inputs[0]);
+                        var y = int.Parse(inputs[1]);
+                        
+                        var tile = map.First(_ => _.Position.X == x && _.Position.Y == y);
+                        tile.Unknown = false;
+                        tile.Pellet = new Pellet {Value = int.Parse(inputs[2])};
                     }
+
+                    // Remove eaten pellets
+                    foreach (var pac in pacs)
+                    {
+                        var tile = map.First(_ => _.Position.XY == pac.Position.XY);
+                        tile.Pellet = null;
+                    }
+
+                    // Remove pellets when tile is in line of sight
+                    // TODO
 
                     initInputProcessor.WriteDebugData();
                     gameTurnInputProcessor.WriteDebugData();
@@ -104,13 +118,13 @@ namespace SpringChallenge2020
                         }
                         else
                         {
-                            var closest = visiblePellets
+                            var closest = map.Where(_ => _.Pellet != null)
                                 .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
                                     .Contains(_)) // Exclude destinations already set for other pacs
-                                .OrderByDescending(_ => _.Value).ThenBy(_ => _.Manhattan(pac.Position))
+                                .OrderByDescending(_ => _.Pellet.Value).ThenBy(_ => _.Position.Manhattan(pac.Position))
                                 .FirstOrDefault();
 
-                            if (pac.Command == "MOVE" && pac.Position == pac.PreviousPosition)
+                            if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
                             {
                                 // Had collision
                                 var collidingPac = pacs.FirstOrDefault(_ =>
@@ -118,7 +132,7 @@ namespace SpringChallenge2020
                                 if (collidingPac?.IsMine == true)
                                 {
                                     pac.Command = "MOVE";
-                                    pac.CommandArgs = new Position(0, 0);
+                                    pac.CommandArgs = map.OrderBy(_ => Guid.NewGuid()).First().Position;
                                 }
                                 else if (collidingPac?.IsMine == false)
                                 {
@@ -127,9 +141,12 @@ namespace SpringChallenge2020
                                     pac.CommandArgs = collidingPac.GetBetterType();
                                 }
                             }
-
-                            pac.Command = "MOVE";
-                            pac.CommandArgs = closest ?? map.OrderBy(_ => Guid.NewGuid()).First().Position;
+                            else
+                            {
+                                pac.Command = "MOVE";
+                                pac.CommandArgs =
+                                    closest?.Position ?? map.OrderBy(_ => Guid.NewGuid()).First().Position;
+                            }
                         }
                     }
 
@@ -143,6 +160,10 @@ namespace SpringChallenge2020
             public Tile(Position position, bool isWall) : base(position, isWall)
             {
             }
+
+            public bool Unknown { get; set; } = true;
+
+            public Pellet Pellet { get; set; }
         }
 
         public enum PacType
@@ -189,12 +210,8 @@ namespace SpringChallenge2020
             }
         }
 
-        public class Pellet : Position
+        public class Pellet
         {
-            public Pellet(int x, int y) : base(x, y)
-            {
-            }
-
             public int Value { get; set; }
         }
 
