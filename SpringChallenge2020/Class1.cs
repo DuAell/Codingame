@@ -102,7 +102,7 @@ namespace SpringChallenge2020
                     {
                         // Try to eat opponent
                         //pacs.Single(e => e.Id == 1 && !e.IsMine).Position.Manhattan(pac.Position)
-                        var opponent = pacs.FirstOrDefault(_ => _.Id != pac.Id && !_.IsMine && _.Position.Manhattan(pac.Position) <= 4);
+                        var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.Position.Manhattan(pac.Position) <= 4);
                         if (opponent != null)
                         {
                             if (opponent.GetBetterType() == pac.PacType)
