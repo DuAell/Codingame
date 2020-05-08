@@ -117,31 +117,48 @@ namespace SpringChallenge2020
                     // To debug: Console.Error.WriteLine("Debug messages...");
                     foreach (var pac in pacs.Where(_ => _.IsMine))
                     {
+                        pac.CommandArgs = string.Empty;
+                        pac.CommandMessage = string.Empty;
+
                         var tilesInSight = map.GetTilesInSightFromAllDirections(pac.Position);
 
                         // Close to an opponent
                         var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY));
-                        if (opponent != null)
+                        // We have the correct type, try to eat him
+                        if (opponent != null && opponent.GetBetterType() == pac.PacType)
                         {
-                            // We have the correct type, try to eat him
-                            if (opponent.GetBetterType() == pac.PacType)
+                            pac.Command = "MOVE";
+                            pac.CommandArgs = opponent.Position;
+                            pac.CommandMessage = $"Eat {opponent.Id}!";
+                        }
+                        // Switch to correct type to eat him
+                        else if (opponent != null && pac.AbilityCooldown == 0)
+                        {
+                            pac.Command = "SWITCH";
+                            pac.CommandArgs = opponent.GetBetterType();
+                        }
+                        // Run away
+                        else if (opponent != null && opponent.Position.Manhattan(pac.Position) <= 4)
+                        {
+                            var evadingDirection = pac.Position.GetDirectionTo(opponent.Position).Value.GetOpposite();
+                            pac.Command = "MOVE";
+                            for (int i = 1; i < 100; i++)
                             {
-                                pac.Command = "MOVE";
-                                pac.CommandArgs = opponent.Position;
+                                var tile = map.GetAdjacent(pac.Position, evadingDirection, i);
+                                if (tile?.IsWall == false)
+                                {
+                                    pac.CommandArgs = tile.Position;
+                                    break;
+                                }
+
+                                if (tile == null)
+                                {
+                                    pac.CommandArgs = pac.Position; // No escape, don't move and pray
+                                    break;
+                                }
                             }
-                            // Switch to correct type to eat him
-                            else if (pac.AbilityCooldown == 0)
-                            {
-                                pac.Command = "SWITCH";
-                                pac.CommandArgs = opponent.GetBetterType();
-                            }
-                            // Run away
-                            else
-                            {
-                                var evadingDirection = pac.Position.GetDirectionTo(opponent.Position).Value.GetOpposite();
-                                pac.Command = "MOVE";
-                                pac.CommandArgs = map.GetAdjacent(pac.Position, evadingDirection).Position;
-                            }
+
+                            pac.CommandMessage = $"Move away from {opponent.Id}";
                         }
                         else
                         {
@@ -154,11 +171,12 @@ namespace SpringChallenge2020
                             else if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
                             {
                                 var collidingPac = pacs.FirstOrDefault(_ =>
-                                    _.Id != pac.Id && _.Position.Manhattan(pac.Position) <= 2);
+                                    !(_.Id == pac.Id && _.IsMine) && _.Position.Manhattan(pac.Position) <= 2);
                                 if (collidingPac?.IsMine == true)
                                 {
                                     pac.Command = "MOVE";
                                     pac.CommandArgs = map.GetRandomTile().Position;
+                                    pac.CommandMessage = "Collision";
                                 }
                                 else if (collidingPac?.IsMine == false)
                                 {
@@ -287,6 +305,7 @@ namespace SpringChallenge2020
 
             public string Command { get; set; }
             public object CommandArgs { get; set; }
+            public string CommandMessage { get; set; }
             public int Id { get; set; }
 
             public PacType PacType { get; set; }
@@ -297,7 +316,7 @@ namespace SpringChallenge2020
 
             public string GetFullCommand()
             {
-                var result = $"{Command} {Id} {CommandArgs}";
+                var result = $"{Command} {Id} {CommandArgs} {CommandMessage}";
                 
                 return result;
             }
