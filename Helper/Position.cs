@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Helper
 {
@@ -23,5 +21,26 @@ namespace Helper
         {
             return X + " " + Y;
         }
+
+        public Direction? GetDirectionTo(Position destination)
+        {
+            if (destination.X > X)
+                return Direction.Est;
+            if (destination.X < X)
+                return Direction.West;
+            if (destination.Y > Y)
+                return Direction.South;
+            if (destination.Y < Y)
+                return Direction.North;
+            return null;
+        }
+    }
+
+    public enum Direction
+    {
+        North,
+        South,
+        Est,
+        West
     }
 }

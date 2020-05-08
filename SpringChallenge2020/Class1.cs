@@ -21,7 +21,7 @@ namespace SpringChallenge2020
             {
                 var initInputProcessor = new InputProcessor(initData);
                 var inputs = initInputProcessor.ReadLine().Split(' ');
-                var map = new List<Tile>();
+                var map = new Map();
                 int width = int.Parse(inputs[0]); // size of the grid
                 int height = int.Parse(inputs[1]); // top left corner is (x=0, y=0)
                 for (int y = 0; y < height; y++)
@@ -29,8 +29,9 @@ namespace SpringChallenge2020
                     string row = initInputProcessor.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
                     for (var x = 0; x < width; x++)
                     {
-                        map.Add(new Tile(new Position(x, y), row[x] == '#'));
+                        map.Tiles.Add(new Tile(new Position(x, y), row[x] == '#'));
                     }
+                    map.Tiles.Where(_ => _.IsWall).ToList().ForEach(_ => _.Unknown = false);
                 }
 
                 var pacs = new List<Pac>();
@@ -71,30 +72,52 @@ namespace SpringChallenge2020
                     pacs.RemoveAll(_ => !_.IsAlive);
 
                     var visiblePelletCount = int.Parse(gameTurnInputProcessor.ReadLine()); // all pellets in sight
+                    var visiblePellets = new List<Position>();
 
                     for (int i = 0; i < visiblePelletCount; i++)
                     {
                         inputs = gameTurnInputProcessor.ReadLine().Split(' ');
                         var x = int.Parse(inputs[0]);
                         var y = int.Parse(inputs[1]);
-                        
-                        var tile = map.First(_ => _.Position.X == x && _.Position.Y == y);
+
+                        visiblePellets.Add(new Position(x, y));
+
+                        var tile = map.GetTile(new Position(x, y));
                         tile.Unknown = false;
                         tile.Pellet = new Pellet {Value = int.Parse(inputs[2])};
                     }
 
+                    initInputProcessor.WriteDebugData();
+                    gameTurnInputProcessor.WriteDebugData();
+
                     // Remove eaten pellets
                     foreach (var pac in pacs)
                     {
-                        var tile = map.First(_ => _.Position.XY == pac.Position.XY);
+                        var tile = map.GetTile(pac.Position);
                         tile.Pellet = null;
                     }
 
                     // Remove pellets when tile is in line of sight
-                    // TODO
+                    foreach (var pac in pacs.Where(_ => _.IsMine))
+                    {
+                        void CheckTilesInSight(Direction direction)
+                        {
+                            for (int i = 1; i < 100; i++)
+                            {
+                                var tile = map.GetAdjacent(pac.Position, direction, i);
+                                if (tile?.IsWall != false) break;
+                                tile.Unknown = false;
 
-                    initInputProcessor.WriteDebugData();
-                    gameTurnInputProcessor.WriteDebugData();
+                                if (visiblePellets.All(_ => _.XY != tile.Position.XY))
+                                    tile.Pellet = null; // This tile is not in the list of visible pellets but is in line of sight. So it's empty
+                            }
+                        }
+
+                        CheckTilesInSight(Direction.West);
+                        CheckTilesInSight(Direction.North);
+                        CheckTilesInSight(Direction.Est);
+                        CheckTilesInSight(Direction.South);
+                    }
 
                     // Write an action using Console.WriteLine()
                     // To debug: Console.Error.WriteLine("Debug messages...");
@@ -118,7 +141,7 @@ namespace SpringChallenge2020
                         }
                         else
                         {
-                            var closest = map.Where(_ => _.Pellet != null)
+                            var closest = map.Tiles.Where(_ => _.Pellet != null)
                                 .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
                                     .Contains(_)) // Exclude destinations already set for other pacs
                                 .OrderByDescending(_ => _.Pellet.Value).ThenBy(_ => _.Position.Manhattan(pac.Position))
@@ -132,7 +155,7 @@ namespace SpringChallenge2020
                                 if (collidingPac?.IsMine == true)
                                 {
                                     pac.Command = "MOVE";
-                                    pac.CommandArgs = map.OrderBy(_ => Guid.NewGuid()).First().Position;
+                                    pac.CommandArgs = map.GetRandomTile().Position;
                                 }
                                 else if (collidingPac?.IsMine == false)
                                 {
@@ -145,7 +168,7 @@ namespace SpringChallenge2020
                             {
                                 pac.Command = "MOVE";
                                 pac.CommandArgs =
-                                    closest?.Position ?? map.OrderBy(_ => Guid.NewGuid()).First().Position;
+                                    closest?.Position ?? map.GetRandomTile().Position;
                             }
                         }
                     }
@@ -164,6 +187,57 @@ namespace SpringChallenge2020
             public bool Unknown { get; set; } = true;
 
             public Pellet Pellet { get; set; }
+        }
+
+        public class Map
+        {
+            public int Width { get; set; }
+            public int Height { get; set; }
+
+            public List<Tile> Tiles { get; set; } = new List<Tile>();
+
+            public Tile GetTile(Position position)
+            {
+                return Tiles.First(_ => _.Position.XY == position.XY);
+            }
+
+            public Tile GetRandomTile()
+            {
+                return Tiles.OrderBy(_ => Guid.NewGuid()).First();
+            }
+
+            public Tile GetAdjacent(Position position, Direction direction, int distance = 1)
+            {
+                int xModifier;
+                switch (direction)
+                {
+                    case Direction.Est:
+                        xModifier = distance;
+                        break;
+                    case Direction.West:
+                        xModifier = -distance;
+                        break;
+                    default:
+                        xModifier = 0;
+                        break;
+                }
+
+                int yModifier;
+                switch (direction)
+                {
+                    case Direction.South:
+                        yModifier = distance;
+                        break;
+                    case Direction.North:
+                        yModifier = -distance;
+                        break;
+                    default:
+                        yModifier = 0;
+                        break;
+                }
+
+                return Tiles.FirstOrDefault(_ => _.Position.X == position.X + xModifier && _.Position.Y == position.Y + yModifier);
+            }
         }
 
         public enum PacType
@@ -232,6 +306,27 @@ namespace SpringChallenge2020
             {
                 return X + " " + Y;
             }
+
+            public Direction? GetDirectionTo(Position destination)
+            {
+                if (destination.X > X)
+                    return Direction.Est;
+                if (destination.X < X)
+                    return Direction.West;
+                if (destination.Y > Y)
+                    return Direction.South;
+                if (destination.Y < Y)
+                    return Direction.North;
+                return null;
+            }
+        }
+
+        public enum Direction
+        {
+            North,
+            South,
+            Est,
+            West
         }
 
         public class InputProcessor

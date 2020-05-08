@@ -1,8 +1,67 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Helper
 {
+    public class Map
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+
+        public List<Tile> Tiles { get; set; } = new List<Tile>();
+
+        public Tile GetRandomTile()
+        {
+            return Tiles.OrderBy(_ => Guid.NewGuid()).First();
+        }
+
+        public Tile GetTile(Position position)
+        {
+            return Tiles.First(_ => _.Position.XY == position.XY);
+        }
+
+        public Tile GetAdjacent(Position position, Direction direction, int distance = 1)
+        {
+            int xModifier;
+            switch (direction)
+            {
+                case Direction.Est:
+                    xModifier = distance;
+                    break;
+                case Direction.West:
+                    xModifier = -distance;
+                    break;
+                default:
+                    xModifier = 0;
+                    break;
+            }
+
+            int yModifier;
+            switch (direction)
+            {
+                case Direction.South:
+                    yModifier = distance;
+                    break;
+                case Direction.North:
+                    yModifier = -distance;
+                    break;
+                default:
+                    yModifier = 0;
+                    break;
+            }
+
+            return Tiles.FirstOrDefault(_ => _.Position.X == position.X + xModifier && _.Position.Y == position.Y + yModifier);
+        }
+    }
+
+    public class Tile : AStarSearch.Location
+    {
+        public Tile(Position position, bool isWall) : base(position, isWall)
+        {
+        }
+    }
+
     public class AStarSearch
     {
         public List<Location> Map { get; }
