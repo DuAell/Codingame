@@ -12,73 +12,129 @@ namespace SpringChallenge2020
     {
         public static void Main(string[] args)
         {
-            var initInputProcessor = new InputProcessor();
-            var inputs = initInputProcessor.ReadLine().Split(' ');
-            var map = new List<AStarSearch.Location>();
-            int width = int.Parse(inputs[0]); // size of the grid
-            int height = int.Parse(inputs[1]); // top left corner is (x=0, y=0)
-            for (int y = 0; y < height; y++)
-            {
-                string row = initInputProcessor.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
-                for(var x = 0; x < width; x++)
-                {
-                    map.Add(new AStarSearch.Location(new Position(x, y), row[x] == '#'));
-                }
-            }
+            Game.Play();
+        }
 
-            // game loop
-            while (true)
+        public static class Game
+        {
+            public static void Play(string initData = null, string turnData = null)
             {
-                var gameTurnInputProcessor = new InputProcessor();
+                var initInputProcessor = new InputProcessor(initData);
+                var inputs = initInputProcessor.ReadLine().Split(' ');
+                var map = new List<AStarSearch.Location>();
+                int width = int.Parse(inputs[0]); // size of the grid
+                int height = int.Parse(inputs[1]); // top left corner is (x=0, y=0)
+                for (int y = 0; y < height; y++)
+                {
+                    string row = initInputProcessor.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
+                    for (var x = 0; x < width; x++)
+                    {
+                        map.Add(new AStarSearch.Location(new Position(x, y), row[x] == '#'));
+                    }
+                }
 
                 var pacs = new List<Pac>();
 
-                inputs = gameTurnInputProcessor.ReadLine().Split(' ');
-                int myScore = int.Parse(inputs[0]);
-                int opponentScore = int.Parse(inputs[1]);
-                int visiblePacCount = int.Parse(Console.ReadLine()); // all your pacs and enemy pacs in sight
-                for (int i = 0; i < visiblePacCount; i++)
+                // game loop
+                while (true)
                 {
+                    pacs.ForEach(_ => _.IsAlive = false);
+                    var gameTurnInputProcessor = new InputProcessor(turnData);
+
                     inputs = gameTurnInputProcessor.ReadLine().Split(' ');
-                    int pacId = int.Parse(inputs[0]); // pac number (unique within a team)
-                    bool mine = inputs[1] != "0"; // true if this pac is yours
-                    int x = int.Parse(inputs[2]); // position in the grid
-                    int y = int.Parse(inputs[3]); // position in the grid
-                    string typeId = inputs[4]; // unused in wood leagues
-                    int speedTurnsLeft = int.Parse(inputs[5]); // unused in wood leagues
-                    int abilityCooldown = int.Parse(inputs[6]); // unused in wood leagues
+                    int myScore = int.Parse(inputs[0]);
+                    int opponentScore = int.Parse(inputs[1]);
+                    int visiblePacCount = int.Parse(gameTurnInputProcessor.ReadLine()); // all your pacs and enemy pacs in sight
+                    for (int i = 0; i < visiblePacCount; i++)
+                    {
+                        inputs = gameTurnInputProcessor.ReadLine().Split(' ');
+                        int pacId = int.Parse(inputs[0]); // pac number (unique within a team)
+                        bool mine = inputs[1] != "0"; // true if this pac is yours
+                        int x = int.Parse(inputs[2]); // position in the grid
+                        int y = int.Parse(inputs[3]); // position in the grid
+                        string typeId = inputs[4]; // unused in wood leagues
+                        int speedTurnsLeft = int.Parse(inputs[5]); // unused in wood leagues
+                        int abilityCooldown = int.Parse(inputs[6]); // unused in wood leagues
 
-                    pacs.Add(new Pac(x, y) {Id = pacId, IsMine = mine});
+                        if (!pacs.Any(_ => _.Id == pacId && _.IsMine == mine))
+                            pacs.Add(new Pac { Id = pacId, IsMine = mine });
+                        var pac = pacs.First(_ => _.Id == pacId && _.IsMine == mine);
+                        pac.PreviousPosition = pac.Position;
+                        pac.Position = new Position(x, y);
+                        pac.PacType = Enum.Parse<PacType>(typeId);
+                        pac.IsAlive = true;
+                    }
+
+                    pacs.RemoveAll(_ => !_.IsAlive);
+
+                    var visiblePelletCount = int.Parse(gameTurnInputProcessor.ReadLine()); // all pellets in sight
+                    var visiblePellets = new List<Pellet>();
+
+                    for (int i = 0; i < visiblePelletCount; i++)
+                    {
+                        inputs = gameTurnInputProcessor.ReadLine().Split(' ');
+                        visiblePellets.Add(
+                            new Pellet(int.Parse(inputs[0]), int.Parse(inputs[1]))
+                            { Value = int.Parse(inputs[2]) }
+                        );
+                    }
+
+                    initInputProcessor.WriteDebugData();
+                    gameTurnInputProcessor.WriteDebugData();
+
+                    // Write an action using Console.WriteLine()
+                    // To debug: Console.Error.WriteLine("Debug messages...");
+                    foreach (var pac in pacs.Where(_ => _.IsMine))
+                    {
+                        // Try to eat opponent
+                        //pacs.Single(e => e.Id == 1 && !e.IsMine).Position.Manhattan(pac.Position)
+                        var opponent = pacs.FirstOrDefault(_ => _.Id != pac.Id && !_.IsMine && _.Position.Manhattan(pac.Position) <= 4);
+                        if (opponent != null)
+                        {
+                            if (opponent.GetBetterType() == pac.PacType)
+                            {
+                                pac.Command = "MOVE";
+                                pac.CommandArgs = opponent.Position;
+                            }
+                            else
+                            {
+                                pac.Command = "SWITCH";
+                                pac.CommandArgs = opponent.GetBetterType();
+                            }
+                        }
+                        else
+                        {
+                            var closest = visiblePellets
+                                .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
+                                    .Contains(_)) // Exclude destinations already set for other pacs
+                                .OrderByDescending(_ => _.Value).ThenBy(_ => _.Manhattan(pac.Position))
+                                .FirstOrDefault();
+
+                            if (pac.Command == "MOVE" && pac.Position == pac.PreviousPosition)
+                            {
+                                // Had collision
+                                var collidingPac = pacs.FirstOrDefault(_ =>
+                                    _.Id != pac.Id && _.Position.Manhattan(pac.Position) <= 2);
+                                if (collidingPac?.IsMine == true)
+                                {
+                                    pac.Command = "MOVE";
+                                    pac.CommandArgs = new Position(0, 0);
+                                }
+                                else if (collidingPac?.IsMine == false)
+                                {
+
+                                    pac.Command = "SWITCH";
+                                    pac.CommandArgs = collidingPac.GetBetterType();
+                                }
+                            }
+
+                            pac.Command = "MOVE";
+                            pac.CommandArgs = closest ?? map.OrderBy(_ => Guid.NewGuid()).First().Position;
+                        }
+                    }
+
+                    Console.WriteLine($"{string.Join("|", pacs.Where(_ => _.IsMine).Select(_ => $"{_.GetFullCommand()}"))}");
                 }
-                int visiblePelletCount = int.Parse(Console.ReadLine()); // all pellets in sight
-                var visiblePellets = new List<Pellet>();
-
-                for (int i = 0; i < visiblePelletCount; i++)
-                {
-                    inputs = gameTurnInputProcessor.ReadLine().Split(' ');
-                    visiblePellets.Add(
-                        new Pellet(int.Parse(inputs[0]), int.Parse(inputs[1]))
-                            {Value = int.Parse(inputs[2])}
-                    );
-                }
-
-                initInputProcessor.WriteDebugData();
-                gameTurnInputProcessor.WriteDebugData();
-
-                // Write an action using Console.WriteLine()
-                // To debug: Console.Error.WriteLine("Debug messages...");
-                foreach (var pac in pacs.Where(_ => _.IsMine))
-                {
-                    var closest = visiblePellets
-                        .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.Destination)
-                            .Contains(_)) // Exclude destinations already set for other pacs
-                        .OrderByDescending(_ => _.Value).ThenBy(_ => _.Manhattan(pac))
-                        .FirstOrDefault();
-
-                    pac.Destination = closest ?? map.OrderBy(_ => Guid.NewGuid()).First().Position;
-                }
-
-                Console.WriteLine($"{string.Join("|", pacs.Where(_ => _.IsMine).Select(_ => $"MOVE {_.Id} {_.Destination}"))}");
             }
         }
 
@@ -89,16 +145,48 @@ namespace SpringChallenge2020
             }
         }
 
-        public class Pac : Position
+        public enum PacType
         {
-            public Pac(int x, int y) : base(x, y)
-            {
-            }
+            ROCK,
+            PAPER,
+            SCISSORS
+        }
+
+        public class Pac
+        {
+            public Position Position { get; set; }
+            public Position PreviousPosition { get; set; }
 
             public bool IsMine { get; set; }
 
-            public Position Destination { get; set; }
+            public string Command { get; set; }
+            public object CommandArgs { get; set; }
             public int Id { get; set; }
+
+            public PacType PacType { get; set; }
+            public bool IsAlive { get; set; }
+
+            public string GetFullCommand()
+            {
+                var result = $"{Command} {Id} {CommandArgs}";
+                
+                return result;
+            }
+
+            public PacType GetBetterType()
+            {
+                switch (PacType)
+                {
+                    case PacType.ROCK:
+                        return PacType.PAPER;
+                    case PacType.PAPER:
+                        return PacType.SCISSORS;
+                    case PacType.SCISSORS:
+                        return PacType.ROCK;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
         }
 
         public class Pellet : Position
