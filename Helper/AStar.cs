@@ -208,7 +208,7 @@ namespace Helper
 
             public Location Parent { get; set; }
 
-            public IEnumerable<Location> GetAdjacentSquares(List<Location> map)
+            public IEnumerable<Location> GetAdjacentSquares(List<Location> map, bool canCrossBorders = false)
             {
                 var proposedLocations = new List<Location>();
 
@@ -217,12 +217,25 @@ namespace Helper
                 AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X - 1 && _.Position.Y == Position.Y), proposedLocations);
                 AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X + 1 && _.Position.Y == Position.Y), proposedLocations);
 
+                // Not tested
+                if (canCrossBorders)
+                {
+                    if (Position.X == 0)
+                        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == map.Max(m => m.Position.X) && _.Position.Y == Position.Y), proposedLocations);
+                    if (Position.X == map.Max(m => m.Position.X))
+                        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == 0 && _.Position.Y == Position.Y), proposedLocations);
+                    if (Position.Y == 0)
+                        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X && _.Position.Y == map.Max(m => m.Position.Y)), proposedLocations);
+                    if (Position.Y == map.Max(m => m.Position.Y))
+                        AddIfNotNull(map.FirstOrDefault(_ => _.Position.X == Position.X && _.Position.Y == 0), proposedLocations);
+                }
+
                 return proposedLocations;
             }
 
             public static void AddIfNotNull<T>(T item, List<T> list)
             {
-                if (item != null)
+                if (item != null && !list.Contains(item))
                     list.Add(item);
             }
         }
