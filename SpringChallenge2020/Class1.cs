@@ -73,7 +73,7 @@ namespace SpringChallenge2020
                         pac.IsVisible = true;
                     }
 
-                    pacs.RemoveAll(_ => !_.IsAlive);
+                    pacs.RemoveAll(_ => _.IsMine && !_.IsAlive); // TODO : Detect dead opponent's pacs
 
                     var visiblePelletCount = int.Parse(gameTurnInputProcessor.ReadLine()); // all pellets in sight
                     var visiblePellets = new List<Position>();
@@ -121,9 +121,29 @@ namespace SpringChallenge2020
                         pac.CommandMessage = string.Empty;
 
                         var tilesInSight = map.GetTilesInSightFromAllDirections(pac.Position);
+                        var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY));
+                        // Had collision
+                        if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
+                        {
+                            var collidingPac = pacs.FirstOrDefault(_ =>
+                                !(_.Id == pac.Id && _.IsMine) && _.Position.Manhattan(pac.Position) <= 2);
+                            if (collidingPac?.IsMine == true)
+                            {
+                                pac.Command = "MOVE";
+                                pac.CommandArgs = map.GetRandomTile().Position;
+                                pac.CommandMessage = "Collision";
+                                continue;
+                            }
+
+                            if (collidingPac?.IsMine == false)
+                            {
+                                pac.Command = "SWITCH";
+                                pac.CommandArgs = collidingPac.GetBetterType();
+                                continue;
+                            }
+                        }
 
                         // Close to an opponent
-                        var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY));
                         // We have the correct type, try to eat him
                         if (opponent != null && opponent.GetBetterType() == pac.PacType)
                         {
@@ -166,24 +186,6 @@ namespace SpringChallenge2020
                             if (pac.AbilityCooldown == 0)
                             {
                                 pac.Command = "SPEED";
-                            }
-                            // Had collision
-                            else if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
-                            {
-                                var collidingPac = pacs.FirstOrDefault(_ =>
-                                    !(_.Id == pac.Id && _.IsMine) && _.Position.Manhattan(pac.Position) <= 2);
-                                if (collidingPac?.IsMine == true)
-                                {
-                                    pac.Command = "MOVE";
-                                    pac.CommandArgs = map.GetRandomTile().Position;
-                                    pac.CommandMessage = "Collision";
-                                }
-                                else if (collidingPac?.IsMine == false)
-                                {
-
-                                    pac.Command = "SWITCH";
-                                    pac.CommandArgs = collidingPac.GetBetterType();
-                                }
                             }
                             // Simple MOVE
                             else
