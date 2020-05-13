@@ -21,13 +21,12 @@ namespace SpringChallenge2020
             {
                 var initInputProcessor = new InputProcessor(initData);
                 var inputs = initInputProcessor.ReadLine().Split(' ');
-                var map = new Map();
-                int width = int.Parse(inputs[0]); // size of the grid
-                int height = int.Parse(inputs[1]); // top left corner is (x=0, y=0)
-                for (int y = 0; y < height; y++)
+                var map = new Map {Width = int.Parse(inputs[0]), Height = int.Parse(inputs[1]), AreBordersLinked = true};
+                // top left corner is (x=0, y=0)
+                for (int y = 0; y < map.Height; y++)
                 {
                     string row = initInputProcessor.ReadLine(); // one line of the grid: space " " is floor, pound "#" is wall
-                    for (var x = 0; x < width; x++)
+                    for (var x = 0; x < map.Width; x++)
                     {
                         map.Tiles.Add(new Tile(new Position(x, y), row[x] == '#'));
                     }
@@ -209,6 +208,7 @@ namespace SpringChallenge2020
         {
             public int Width { get; set; }
             public int Height { get; set; }
+            public bool AreBordersLinked { get; set; }
 
             public List<Tile> Tiles { get; set; } = new List<Tile>();
 
@@ -224,6 +224,7 @@ namespace SpringChallenge2020
 
             public IEnumerable<Tile> GetAllAdjacent(Position position, int distance = 1)
             {
+                
                 return new List<Tile>
                 {
                     GetAdjacent(position, Direction.West, distance),
@@ -263,7 +264,25 @@ namespace SpringChallenge2020
                         break;
                 }
 
-                return Tiles.FirstOrDefault(_ => _.Position.X == position.X + xModifier && _.Position.Y == position.Y + yModifier);
+                var newX = position.X + xModifier;
+                if (AreBordersLinked)
+                {
+                    if (newX > Width)
+                        newX -= Width;
+                    else if (newX < 0)
+                        newX += Width;
+                }
+
+                var newY = position.Y + yModifier;
+                if (AreBordersLinked)
+                {
+                    if (newY > Height)
+                        newY -= Height;
+                    else if (newY < 0)
+                        newY += Height;
+                }
+
+                return Tiles.FirstOrDefault(_ => _.Position.X == newX && _.Position.Y == newY);
             }
 
             public IEnumerable<Tile> GetTilesInSightFromAllDirections(Position position, int depth = 1000)

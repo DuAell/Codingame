@@ -8,6 +8,7 @@ namespace Helper
     {
         public int Width { get; set; }
         public int Height { get; set; }
+        public bool AreBordersLinked { get; set; }
 
         public List<Tile> Tiles { get; set; } = new List<Tile>();
 
@@ -62,7 +63,25 @@ namespace Helper
                     break;
             }
 
-            return Tiles.FirstOrDefault(_ => _.Position.X == position.X + xModifier && _.Position.Y == position.Y + yModifier);
+            var newX = position.X + xModifier;
+            if (AreBordersLinked)
+            {
+                if (newX > Width)
+                    newX -= Width;
+                else if (newX < 0)
+                    newX += Width;
+            }
+
+            var newY = position.Y + yModifier;
+            if (AreBordersLinked)
+            {
+                if (newY > Height)
+                    newY -= Height;
+                else if (newY < 0)
+                    newY += Height;
+            }
+
+            return Tiles.FirstOrDefault(_ => _.Position.X == newX && _.Position.Y == newY);
         }
 
         public IEnumerable<Tile> GetTilesInSightFromAllDirections(Position position, int depth = 1000)
