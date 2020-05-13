@@ -21,12 +21,23 @@ namespace Helper
             return Tiles.First(_ => _.Position.XY == position.XY);
         }
 
+        public IEnumerable<Tile> GetAllAdjacent(Position position, int distance = 1)
+        {
+            return new List<Tile>
+            {
+                GetAdjacent(position, Direction.West, distance),
+                GetAdjacent(position, Direction.North, distance),
+                GetAdjacent(position, Direction.East, distance),
+                GetAdjacent(position, Direction.South, distance)
+            };
+        }
+
         public Tile GetAdjacent(Position position, Direction direction, int distance = 1)
         {
             int xModifier;
             switch (direction)
             {
-                case Direction.Est:
+                case Direction.East:
                     xModifier = distance;
                     break;
                 case Direction.West:
@@ -58,7 +69,7 @@ namespace Helper
         {
             return GetTilesInSight(position, Direction.West, depth)
                 .Union(GetTilesInSight(position, Direction.North, depth))
-                .Union(GetTilesInSight(position, Direction.Est, depth))
+                .Union(GetTilesInSight(position, Direction.East, depth))
                 .Union(GetTilesInSight(position, Direction.South, depth));
         }
 

@@ -25,7 +25,7 @@ namespace Helper
         public Direction? GetDirectionTo(Position destination)
         {
             if (destination.X > X)
-                return Direction.Est;
+                return Direction.East;
             if (destination.X < X)
                 return Direction.West;
             if (destination.Y > Y)
@@ -40,7 +40,7 @@ namespace Helper
     {
         North,
         South,
-        Est,
+        East,
         West
     }
 
@@ -53,8 +53,8 @@ namespace Helper
                 case Direction.North:
                     return Direction.South;
                 case Direction.West:
-                    return Direction.Est;
-                case Direction.Est:
+                    return Direction.East;
+                case Direction.East:
                     return Direction.West;
                 case Direction.South:
                     return Direction.North;

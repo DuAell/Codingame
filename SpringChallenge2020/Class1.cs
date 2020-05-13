@@ -121,7 +121,7 @@ namespace SpringChallenge2020
                         pac.CommandMessage = string.Empty;
 
                         var tilesInSight = map.GetTilesInSightFromAllDirections(pac.Position);
-                        var opponent = pacs.FirstOrDefault(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY));
+                        var opponent = pacs.Where(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY)).OrderByDescending(_ => _.Position.Manhattan(pac.Position)).FirstOrDefault();
                         // Had collision
                         if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
                         {
@@ -160,24 +160,10 @@ namespace SpringChallenge2020
                         // Run away
                         else if (opponent != null && opponent.Position.Manhattan(pac.Position) <= 4)
                         {
-                            var evadingDirection = pac.Position.GetDirectionTo(opponent.Position).Value.GetOpposite();
+                            var possibleNewPositions = map.GetAllAdjacent(pac.Position);
+
                             pac.Command = "MOVE";
-                            for (int i = 1; i < 100; i++)
-                            {
-                                var tile = map.GetAdjacent(pac.Position, evadingDirection, i);
-                                if (tile?.IsWall == false)
-                                {
-                                    pac.CommandArgs = tile.Position;
-                                    break;
-                                }
-
-                                if (tile == null)
-                                {
-                                    pac.CommandArgs = pac.Position; // No escape, don't move and pray
-                                    break;
-                                }
-                            }
-
+                            pac.CommandArgs = possibleNewPositions.Where(_ => _ != null && !_.IsWall).OrderByDescending(_ => _.Position.Manhattan(opponent.Position)).First().Position;
                             pac.CommandMessage = $"Move away from {opponent.Id}";
                         }
                         else
@@ -228,7 +214,7 @@ namespace SpringChallenge2020
 
             public Tile GetTile(Position position)
             {
-                return Tiles.First(_ => _.Position.XY == position.XY);
+                return Tiles.FirstOrDefault(_ => _.Position.XY == position.XY);
             }
 
             public Tile GetRandomTile()
@@ -236,12 +222,23 @@ namespace SpringChallenge2020
                 return Tiles.OrderBy(_ => Guid.NewGuid()).First();
             }
 
+            public IEnumerable<Tile> GetAllAdjacent(Position position, int distance = 1)
+            {
+                return new List<Tile>
+                {
+                    GetAdjacent(position, Direction.West, distance),
+                    GetAdjacent(position, Direction.North, distance),
+                    GetAdjacent(position, Direction.East, distance),
+                    GetAdjacent(position, Direction.South, distance)
+                };
+            }
+
             public Tile GetAdjacent(Position position, Direction direction, int distance = 1)
             {
                 int xModifier;
                 switch (direction)
                 {
-                    case Direction.Est:
+                    case Direction.East:
                         xModifier = distance;
                         break;
                     case Direction.West:
@@ -273,7 +270,7 @@ namespace SpringChallenge2020
             {
                 return GetTilesInSight(position, Direction.West, depth)
                     .Union(GetTilesInSight(position, Direction.North, depth))
-                    .Union(GetTilesInSight(position, Direction.Est, depth))
+                    .Union(GetTilesInSight(position, Direction.East, depth))
                     .Union(GetTilesInSight(position, Direction.South, depth));
             }
 
@@ -365,7 +362,7 @@ namespace SpringChallenge2020
             public Direction? GetDirectionTo(Position destination)
             {
                 if (destination.X > X)
-                    return Direction.Est;
+                    return Direction.East;
                 if (destination.X < X)
                     return Direction.West;
                 if (destination.Y > Y)
@@ -380,7 +377,7 @@ namespace SpringChallenge2020
         {
             North,
             South,
-            Est,
+            East,
             West
         }
 
@@ -599,8 +596,8 @@ namespace SpringChallenge2020
                 case Player.Direction.North:
                     return Player.Direction.South;
                 case Player.Direction.West:
-                    return Player.Direction.Est;
-                case Player.Direction.Est:
+                    return Player.Direction.East;
+                case Player.Direction.East:
                     return Player.Direction.West;
                 case Player.Direction.South:
                     return Player.Direction.North;
