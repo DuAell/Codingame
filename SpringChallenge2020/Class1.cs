@@ -120,7 +120,7 @@ namespace SpringChallenge2020
                         pac.CommandMessage = string.Empty;
 
                         var tilesInSight = map.GetTilesInSightFromAllDirections(pac.Position);
-                        var opponent = pacs.Where(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY)).OrderByDescending(_ => _.Position.Manhattan(pac.Position)).FirstOrDefault();
+                        var opponent = pacs.Where(_ => !_.IsMine && _.IsVisible && tilesInSight.Select(t => t.Position.XY).Contains(_.Position.XY)).OrderBy(_ => _.Position.Manhattan(pac.Position)).FirstOrDefault();
                         // Had collision
                         if (pac.Command == "MOVE" && pac.Position.XY == pac.PreviousPosition.XY)
                         {
@@ -143,27 +143,58 @@ namespace SpringChallenge2020
                         }
 
                         // Close to an opponent
-                        // We have the correct type, try to eat him
-                        if (opponent != null && opponent.GetBetterType() == pac.PacType)
+                        if (opponent != null && map.Tiles.All(_ => _.Pellet?.Value == 1))
                         {
-                            pac.Command = "MOVE";
-                            pac.CommandArgs = opponent.Position;
-                            pac.CommandMessage = $"Eat {opponent.Id}!";
-                        }
-                        // Switch to correct type to eat him
-                        else if (opponent != null && pac.AbilityCooldown == 0)
-                        {
-                            pac.Command = "SWITCH";
-                            pac.CommandArgs = opponent.GetBetterType();
-                        }
-                        // Run away
-                        else if (opponent != null && opponent.Position.Manhattan(pac.Position) <= 4)
-                        {
-                            var possibleNewPositions = map.GetAllAdjacent(pac.Position);
-
-                            pac.Command = "MOVE";
-                            pac.CommandArgs = possibleNewPositions.Where(_ => _ != null && !_.IsWall).OrderByDescending(_ => _.Position.Manhattan(opponent.Position)).First().Position;
-                            pac.CommandMessage = $"Move away from {opponent.Id}";
+                            // Chasing him
+                            if (opponent.Position.Manhattan(pac.Position) > 2)
+                            {
+                                pac.Command = "MOVE";
+                                pac.CommandArgs = opponent.Position;
+                                pac.CommandMessage = $"Chase {opponent.Id}!";
+                            }
+                            else
+                            {
+                                // We do not have the correct type
+                                if (opponent.GetBetterType() != pac.PacType)
+                                {
+                                    if (pac.AbilityCooldown == 0)
+                                    {
+                                        // Switch
+                                        pac.Command = "SWITCH";
+                                        pac.CommandArgs = opponent.GetBetterType();
+                                    }
+                                    else
+                                    {
+                                        // Run away
+                                        pac.Command = "MOVE";
+                                        pac.CommandArgs = map.GetAllAdjacent(pac.Position)
+                                            .Where(_ => !_.IsWall)
+                                            .OrderByDescending(_ => _.Position.Manhattan(opponent.Position)).First()
+                                            .Position;
+                                        pac.CommandMessage = $"Move away from {opponent.Id}";
+                                    }
+                                }
+                                else
+                                {
+                                    // He can change type the same turn we try to eat him
+                                    if (opponent.AbilityCooldown == 0)
+                                    {
+                                        pac.Command = "MOVE";
+                                        pac.CommandArgs = map.GetAllAdjacent(pac.Position)
+                                            .Where(_ => !_.IsWall)
+                                            .OrderByDescending(_ => _.Position.Manhattan(opponent.Position)).First()
+                                            .Position;
+                                        pac.CommandMessage = $"Keep away from {opponent.Id}";
+                                    }
+                                    // Eat him
+                                    else
+                                    {
+                                        pac.Command = "MOVE";
+                                        pac.CommandArgs = opponent.Position;
+                                        pac.CommandMessage = $"Eat {opponent.Id}!";
+                                    }
+                                }
+                            }
                         }
                         else
                         {
@@ -176,9 +207,11 @@ namespace SpringChallenge2020
                             else
                             {
                                 var closestPellet = map.Tiles.Where(_ => _.Pellet != null)
-                                    .Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
-                                        .Contains(_)) // Exclude destinations already set for other pacs
-                                    .OrderByDescending(_ => _.Pellet.Value).ThenBy(_ => _.Position.Manhattan(pac.Position))
+                                    //.Where(_ => !pacs.Where(p => p.IsMine).Select(p => p.CommandArgs)
+                                    //    .Contains(_.Position)) // Exclude destinations already set for other pacs
+                                    .OrderByDescending(_ => _.Pellet.Value) // Super pellets
+                                    //.ThenByDescending(_ => pacs.Where(p => p.IsMine && p != pac).Select(p => _.Position.Manhattan(p.CommandArgs as Position ?? p.Position)).Average()) // Furthest pellets of colleagues
+                                    .ThenBy(_ => _.Position.Manhattan(pac.Position)) // Closest to me
                                     .FirstOrDefault();
 
                                 pac.Command = "MOVE";
@@ -224,14 +257,7 @@ namespace SpringChallenge2020
 
             public IEnumerable<Tile> GetAllAdjacent(Position position, int distance = 1)
             {
-                
-                return new List<Tile>
-                {
-                    GetAdjacent(position, Direction.West, distance),
-                    GetAdjacent(position, Direction.North, distance),
-                    GetAdjacent(position, Direction.East, distance),
-                    GetAdjacent(position, Direction.South, distance)
-                };
+                return Enum.GetValues(typeof(Direction)).Cast<Direction>().Select(direction => GetAdjacent(position, direction, distance)).Where(adj => adj != null).ToList();
             }
 
             public Tile GetAdjacent(Position position, Direction direction, int distance = 1)
