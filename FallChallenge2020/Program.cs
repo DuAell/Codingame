@@ -89,7 +89,7 @@ public class Game
         }
 
         // in the first league: BREW <id> | WAIT; later: BREW <id> | CAST <id> [<times>] | LEARN <id> | REST | WAIT
-        Console.WriteLine("WAIT");
+        Console.WriteLine("REST");
     }
 }
 
