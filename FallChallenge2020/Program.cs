@@ -28,10 +28,8 @@ public class Game
     public Player Me => Players[0];
     public Player Opponent => Players[1];
 
-    public void Launch(string debugData = null)
+    public void Launch()
     {
-        InputProcessor = new InputProcessor(debugData);
-
         // game loop
         while (true)
         {
@@ -39,8 +37,10 @@ public class Game
         }
     }
 
-    public void LaunchTurn()
+    public void LaunchTurn(string debugData = null)
     {
+        InputProcessor = new InputProcessor(debugData);
+
         string[] inputs;
         var actionCount = int.Parse(InputProcessor.ReadLine()); // the number of spells and recipes in play
         Orders = new List<Order>();
