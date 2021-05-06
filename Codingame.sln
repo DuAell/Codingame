@@ -33,9 +33,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OceanOfCode", "OceanOfCode\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OceanOfCode.Test", "OceanOfCode.Test\OceanOfCode.Test.csproj", "{83962B5C-752A-4DF4-82A2-92EF4DAFA55A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpringChallenge2020", "SpringChallenge2020\SpringChallenge2020.csproj", "{B930062A-A416-43B4-957B-8F9A62074B78}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpringChallenge2020", "SpringChallenge2020\SpringChallenge2020.csproj", "{B930062A-A416-43B4-957B-8F9A62074B78}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FallChallenge2020", "FallChallenge2020\FallChallenge2020.csproj", "{40EBCA49-F54A-49A1-AF45-E717EE0EFF1D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FallChallenge2020", "FallChallenge2020\FallChallenge2020.csproj", "{40EBCA49-F54A-49A1-AF45-E717EE0EFF1D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpringChallenge2021", "SpringChallenge2021\SpringChallenge2021.csproj", "{4383CA69-992E-440C-8F99-834971634B67}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -111,6 +113,10 @@ Global
 		{40EBCA49-F54A-49A1-AF45-E717EE0EFF1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{40EBCA49-F54A-49A1-AF45-E717EE0EFF1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{40EBCA49-F54A-49A1-AF45-E717EE0EFF1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4383CA69-992E-440C-8F99-834971634B67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4383CA69-992E-440C-8F99-834971634B67}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4383CA69-992E-440C-8F99-834971634B67}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4383CA69-992E-440C-8F99-834971634B67}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
