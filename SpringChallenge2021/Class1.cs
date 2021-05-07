@@ -39,11 +39,6 @@ namespace SpringChallenge2021
             IsMine = isMine;
             IsDormant = isDormant;
         }
-
-        public bool HasTimeToGrow(Game game)
-        {
-            return Size - game.NumberOfDaysLeft() <= 0;
-        }
     }
 
     internal class Action
@@ -137,6 +132,11 @@ namespace SpringChallenge2021
             Tree = tree;
         }
 
+        public bool HasTimeToGrow(Game game)
+        {
+            return 3 - Tree.Size <= game.NumberOfDaysLeft();
+        }
+
         public override int GetCost(Game game)
         {
             // Faire pousser une graine en un arbre de taille 1 coûte 1 point de soleil + le nombre d'arbres de taille 1 que vous possédez déjà.
@@ -177,6 +177,11 @@ namespace SpringChallenge2021
             //Pour effectuer l'action Seed, vous devez dépenser un nombre de points de soleil égal au nombre de graines (arbres de taille 0) présentes dans la forêt que vous possédez.
             return game.Trees.Count(_ => _.IsMine && _.Size == 0);
         }
+
+        public bool HasTimeToGrow(Game game)
+        {
+            return 3 <= game.NumberOfDaysLeft();
+        }
     }
 
     internal class Game
@@ -208,15 +213,13 @@ namespace SpringChallenge2021
         {
             PossibleActions.AddRange(possibleMoves.OfType<ActionComplete>().OrderByDescending(_ => _.Tree.Cell.Richness));
 
-            PossibleActions.AddRange(possibleMoves.OfType<ActionGrow>().Where(_ => _.Tree.HasTimeToGrow(this)).OrderByDescending(_ => _.Tree.Cell.Richness).ThenByDescending(_ => _.Tree.Size));
+            PossibleActions.AddRange(possibleMoves.OfType<ActionGrow>().Where(_ => _.HasTimeToGrow(this)).OrderByDescending(_ => _.Tree.Cell.Richness).ThenByDescending(_ => _.Tree.Size));
 
-            PossibleActions.AddRange(possibleMoves.OfType<ActionSeed>().OrderByDescending(_ => _.Target.Richness));
+            PossibleActions.AddRange(possibleMoves.OfType<ActionSeed>().Where(_ => _.HasTimeToGrow(this)).OrderByDescending(_ => _.Target.Richness));
 
             PossibleActions.AddRange(possibleMoves.OfType<ActionWait>());
 
             PossibleActions.RemoveAll(_ => !possibleMoves.Contains(_));
-
-            PossibleActions.ForEach(_ => Console.Error.WriteLine($"Possible action: {_}"));
 
             return PossibleActions.First();
         }
@@ -263,6 +266,7 @@ namespace SpringChallenge2021
                 game.OpponentSun = int.Parse(inputs[0]); // opponent's sun points
                 game.OpponentScore = int.Parse(inputs[1]); // opponent's score
                 game.OpponentIsWaiting = inputs[2] != "0"; // whether your opponent is asleep until the next day
+                Console.Error.WriteLine($"{game.NumberOfDaysLeft()} days left");
 
                 game.Trees.Clear();
                 var numberOfTrees = int.Parse(Console.ReadLine()); // the current amount of trees
@@ -284,7 +288,7 @@ namespace SpringChallenge2021
                 {
                     var possibleMove = Console.ReadLine();
                     possibleMoves.Add(Action.Parse(possibleMove, game));
-                    Console.Error.WriteLine(possibleMove);
+                    //Console.Error.WriteLine(possibleMove);
                 }
 
                 var action = game.GetNextAction(possibleMoves);
