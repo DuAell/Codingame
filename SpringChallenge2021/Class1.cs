@@ -40,24 +40,9 @@ namespace SpringChallenge2021
             IsDormant = isDormant;
         }
 
-        public ActionComplete Complete() => new ActionComplete(this);
-        public ActionGrow Grow() => new ActionGrow(this);
-        public ActionSeed Seed(Cell target) => new ActionSeed(this, target);
-
-        private bool HasTimeToGrow(Game game)
+        public bool HasTimeToGrow(Game game)
         {
             return Size - game.NumberOfDaysLeft() <= 0;
-        }
-
-        public bool CanGrow(Game game)
-        {
-            return Size != 3 && HasTimeToGrow(game);
-        }
-
-        public bool CanSeed(Game game, Cell target)
-        {
-            // Vous ne pouvez pas planter une graine sur une case inutilisable ou sur une case qui contient déjà un arbre.
-            return target.Richness > 0 && game.Trees.All(_ => _.Cell != target);
         }
     }
 
@@ -69,6 +54,24 @@ namespace SpringChallenge2021
         public const string Complete = "COMPLETE";
         public int SourceCellIdx;
         public int TargetCellIdx;
+
+        public static Action Parse(string action, Game game)
+        {
+            string[] parts = action.Split(" ");
+            switch (parts[0])
+            {
+                case Wait:
+                    return new ActionWait();
+                case Seed:
+                    return new ActionSeed(game.Trees.Single(_ => _.Cell.Index == int.Parse(parts[1])), game.Board.Single(_ => _.Index == int.Parse(parts[2])));
+                case Grow:
+                    return new ActionGrow(game.Trees.Single(_ => _.Cell.Index == int.Parse(parts[1])));
+                case Complete:
+                    return new ActionComplete(game.Trees.Single(_ => _.Cell.Index == int.Parse(parts[1])));
+                default:
+                    throw new NotImplementedException();
+            }
+        }
 
         public virtual int GetCost(Game game)
         {
@@ -102,11 +105,21 @@ namespace SpringChallenge2021
         }
     }
 
+    internal class ActionWait : Action
+    {
+        public ActionWait() : base(Wait)
+        {
+
+        }
+    }
+
     internal class ActionComplete : Action
     {
+        public Tree Tree { get; }
+
         public ActionComplete(Tree tree) : base(Complete, tree.Cell.Index)
         {
-            
+            Tree = tree;
         }
 
         public override int GetCost(Game game)
@@ -117,29 +130,29 @@ namespace SpringChallenge2021
 
     internal class ActionGrow : Action
     {
-        private readonly Tree _tree;
+        public Tree Tree { get; }
 
         public ActionGrow(Tree tree) : base(Grow, tree.Cell.Index)
         {
-            _tree = tree;
+            Tree = tree;
         }
 
         public override int GetCost(Game game)
         {
             // Faire pousser une graine en un arbre de taille 1 coûte 1 point de soleil + le nombre d'arbres de taille 1 que vous possédez déjà.
-            if (_tree.Size == 0)
+            if (Tree.Size == 0)
             {
                 return game.Trees.Count(_ => _.IsMine && _.Size == 1) + 1;
             }
 
             //Faire pousser un arbre de taille 1 en un arbre de taille 2 coûte 3 points de soleil + le nombre d'arbres de taille 2 que vous possédez déjà.
-            if (_tree.Size == 1)
+            if (Tree.Size == 1)
             {
                 return game.Trees.Count(_ => _.IsMine && _.Size == 2) + 3;
             }
 
             //Faire pousser un arbre de taille 2 en un arbre de taille 3 coûte 7 points de soleil + le nombre d'arbres de taille 3 que vous possédez déjà.
-            if (_tree.Size == 2)
+            if (Tree.Size == 2)
             {
                 return game.Trees.Count(_ => _.IsMine && _.Size == 3) + 7;
             }
@@ -150,8 +163,13 @@ namespace SpringChallenge2021
 
     internal class ActionSeed : Action
     {
-        public ActionSeed(Tree tree, Cell target) : base(Grow, tree.Cell.Index, target.Index)
+        public Tree Tree { get; }
+        public Cell Target { get; }
+
+        public ActionSeed(Tree tree, Cell target) : base(Seed, tree.Cell.Index, target.Index)
         {
+            Tree = tree;
+            Target = target;
         }
 
         public override int GetCost(Game game)
@@ -186,16 +204,21 @@ namespace SpringChallenge2021
             return MaxDays - Day;
         }
 
-        public Action GetNextAction()
+        public Action GetNextAction(List<Action> possibleMoves)
         {
-            var myTrees = Trees.Where(_ => _.IsMine && !_.IsDormant).ToList();
+            PossibleActions.AddRange(possibleMoves.OfType<ActionComplete>().OrderByDescending(_ => _.Tree.Cell.Richness));
 
-            PossibleActions.AddRange(myTrees.Where(_ => _.Size == 3).OrderByDescending(_ => _.Cell.Richness).Select(_ => _.Complete()));
+            PossibleActions.AddRange(possibleMoves.OfType<ActionGrow>().Where(_ => _.Tree.HasTimeToGrow(this)).OrderByDescending(_ => _.Tree.Cell.Richness).ThenByDescending(_ => _.Tree.Size));
 
-            PossibleActions.AddRange(myTrees.Where(_ => _.CanGrow(this)).OrderByDescending(_ => _.Cell.Richness).ThenByDescending(_ => _.Size).Select(_ => _.Grow()));
+            PossibleActions.AddRange(possibleMoves.OfType<ActionSeed>().OrderByDescending(_ => _.Target.Richness));
 
-            PossibleActions.Add(new Action(Action.Wait));
-            return PossibleActions.First(_ => _.GetCost(this) <= MySun);
+            PossibleActions.AddRange(possibleMoves.OfType<ActionWait>());
+
+            PossibleActions.RemoveAll(_ => !possibleMoves.Contains(_));
+
+            PossibleActions.ForEach(_ => Console.Error.WriteLine($"Possible action: {_}"));
+
+            return PossibleActions.First();
         }
     }
 
@@ -256,13 +279,15 @@ namespace SpringChallenge2021
 
                 game.PossibleActions.Clear();
                 var numberOfPossibleMoves = int.Parse(Console.ReadLine());
+                var possibleMoves = new List<Action>();
                 for (var i = 0; i < numberOfPossibleMoves; i++)
                 {
                     var possibleMove = Console.ReadLine();
+                    possibleMoves.Add(Action.Parse(possibleMove, game));
                     Console.Error.WriteLine(possibleMove);
                 }
 
-                var action = game.GetNextAction();
+                var action = game.GetNextAction(possibleMoves);
                 Console.WriteLine(action);
             }
             // ReSharper disable once FunctionNeverReturns
