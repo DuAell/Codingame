@@ -86,6 +86,28 @@ namespace SpringChallenge2021
             return shadowingTrees.Where(_ => _.Size >= Size).ToList();
         }
 
+        public IReadOnlyCollection<Tree> GetThreatenedTrees(List<Tree> trees, int sunDirection, int? overrideSize = null)
+        {
+            var size = overrideSize ?? Size;
+            var result = new List<Tree>();
+            var cell = Cell;
+            for (var i = 1; i <= size; i++)
+            {
+                var neighbour = cell.Neighbours[sunDirection]?.Cell;
+                if (neighbour == null)
+                    continue;
+                var neighbourTree = trees.SingleOrDefault(_ => _.Cell == neighbour);
+                if (neighbourTree != null && neighbourTree.Size <= size)
+                {
+                    result.Add(neighbourTree);
+                }
+
+                cell = neighbour;
+            }
+
+            return result;
+        }
+
         public int TimeToGrow() => 3 - Size;
     }
 
@@ -97,6 +119,8 @@ namespace SpringChallenge2021
         public const string Complete = "COMPLETE";
         public int SourceCellIdx;
         public int TargetCellIdx;
+
+        public string Debug { get; set; }
 
         public static Action Parse(string action, Game game)
         {
@@ -117,6 +141,11 @@ namespace SpringChallenge2021
         }
 
         public virtual int GetCost(Game game)
+        {
+            return 0;
+        }
+
+        public virtual int GetScore(Game game)
         {
             return 0;
         }
@@ -169,6 +198,20 @@ namespace SpringChallenge2021
         {
             return 4;
         }
+
+        public override int GetScore(Game game)
+        {
+            var tomorrowSunDirection = Game.SunDirection(game.Day + 1);
+
+            var score = 0;
+
+            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => _.IsMine).Select(_ => 2).Sum(); // Add points where this tree threaten my trees
+            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => !_.IsMine).Select(_ => -2).Sum(); // Remove points where this tree threaten opponent trees
+            score += Tree.Cell.Richness;
+            score += 2; // gives priority on tree completion
+
+            return score;
+        }
     }
 
     internal class ActionGrow : Action
@@ -207,6 +250,23 @@ namespace SpringChallenge2021
 
             throw new NotImplementedException();
         }
+
+        public override int GetScore(Game game)
+        {
+            var tomorrowSunDirection = Game.SunDirection(game.Day + 1);
+
+            var score = 0;
+
+            if (!HasTimeToGrow(game)) return -1;
+
+            score += Tree.GetThreateningTrees(game.Trees, tomorrowSunDirection).Select(_ => -1).Sum(); // Remove points if tree will be threatened tomorrow
+            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => _.IsMine).Select(_ => -2).Sum(); // Remove points where this tree threaten my trees
+            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => !_.IsMine).Select(_ => 2).Sum(); // Add points where this tree threaten opponent trees
+            score += Tree.Cell.Richness;
+            score += Tree.Size; // Better to grow nearly complete trees
+
+            return score;
+        }
     }
 
     internal class ActionSeed : Action
@@ -226,6 +286,17 @@ namespace SpringChallenge2021
             return game.Trees.Count(_ => _.IsMine && _.Size == 0);
         }
 
+        public override int GetScore(Game game)
+        {
+            var score = 0;
+
+            if (!HasTimeToGrow(game)) return -1;
+
+            score += Tree.Cell.Richness;
+
+            return score;
+        }
+
         public bool HasTimeToGrow(Game game)
         {
             return 3 <= game.NumberOfDaysLeft();
@@ -243,6 +314,7 @@ namespace SpringChallenge2021
         public int Nutrients;
         public bool OpponentIsWaiting;
         public List<Action> PossibleActions;
+        public List<Action> PossibleMoves;
         public List<Tree> Trees;
 
         public Game()
@@ -254,25 +326,23 @@ namespace SpringChallenge2021
 
         public int NumberOfDaysLeft() => MaxDays - Day;
 
-        public Action GetNextAction(List<Action> possibleMoves)
+        public Action GetNextAction()
         {
-            // First cut trees that will be threatened tomorrow
-            PossibleActions.AddRange(possibleMoves.OfType<ActionComplete>().Where(_ => _.Tree.GetThreateningTrees(Trees, SunDirection(Day + 1)).Any()).OrderByDescending(_ => _.Tree.Cell.Richness));
-            PossibleActions.AddRange(possibleMoves.OfType<ActionComplete>().OrderByDescending(_ => _.Tree.Cell.Richness));
-
-            // First grow trees that will not be threatened tomorrow
-            PossibleActions.AddRange(possibleMoves.OfType<ActionGrow>().Where(_ => _.HasTimeToGrow(this) && !_.Tree.GetThreateningTrees(Trees, SunDirection(Day + 1)).Any()).OrderByDescending(_ => _.Tree.Cell.Richness));
-            PossibleActions.AddRange(possibleMoves.OfType<ActionGrow>().Where(_ => _.HasTimeToGrow(this)).OrderByDescending(_ => _.Tree.Cell.Richness).ThenByDescending(_ => _.Tree.Size));
+            PossibleActions.AddRange(PossibleMoves);
 
             var timeToGrowAllTrees = Trees.Where(_ => _.IsMine).Sum(_ => _.TimeToGrow());
             if (NumberOfDaysLeft() > timeToGrowAllTrees) // Stop seeding if we don't have time to grow them all
-                PossibleActions.AddRange(possibleMoves.OfType<ActionSeed>().Where(_ => _.HasTimeToGrow(this)).OrderByDescending(_ => _.Target.Richness));
+                PossibleActions.RemoveAll(_ => _ is ActionSeed);
 
-            PossibleActions.AddRange(possibleMoves.OfType<ActionWait>());
 
-            PossibleActions.RemoveAll(_ => !possibleMoves.Contains(_));
+            return PossibleMoves.OrderByDescending(_ => _.GetScore(this)).First();
+        }
 
-            return PossibleActions.First();
+        public void AddAction(Action action, string debug = null)
+        {
+            action.Debug = debug;
+            PossibleActions.Add(action);
+            PossibleMoves.Remove(action);
         }
 
         public static int SunDirection(int day) => day % 6;
@@ -353,15 +423,17 @@ namespace SpringChallenge2021
 
                 game.PossibleActions.Clear();
                 var numberOfPossibleMoves = int.Parse(Console.ReadLine());
-                var possibleMoves = new List<Action>();
+                game.PossibleMoves = new List<Action>();
                 for (var i = 0; i < numberOfPossibleMoves; i++)
                 {
                     var possibleMove = Console.ReadLine();
-                    possibleMoves.Add(Action.Parse(possibleMove, game));
-                    //Console.Error.WriteLine(possibleMove);
+                    game.PossibleMoves.Add(Action.Parse(possibleMove, game));
                 }
 
-                var action = game.GetNextAction(possibleMoves);
+                var action = game.GetNextAction();
+
+                game.PossibleActions.ForEach(_ => Console.Error.WriteLine($"{_}: {_.GetScore(game)}"));
+
                 Console.WriteLine(action);
             }
             // ReSharper disable once FunctionNeverReturns
