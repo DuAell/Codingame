@@ -79,11 +79,11 @@ namespace SpringChallenge2021
             IsDormant = isDormant;
         }
 
-        public IReadOnlyCollection<Tree> GetThreateningTrees(List<Tree> trees, int sunDirection)
+        public IReadOnlyCollection<Tree> GetThreateningTrees(List<Tree> trees, int sunDirection, int? overrideSize = null)
         {
             var shadowingTrees = Cell.GetShadowingTrees(trees, sunDirection);
 
-            return shadowingTrees.Where(_ => _.Size >= Size).ToList();
+            return shadowingTrees.Where(_ => _.Size >= (overrideSize ?? Size)).ToList();
         }
 
         public IReadOnlyCollection<Tree> GetThreatenedTrees(List<Tree> trees, int sunDirection, int? overrideSize = null)
@@ -120,7 +120,7 @@ namespace SpringChallenge2021
         public int SourceCellIdx;
         public int TargetCellIdx;
 
-        public string Debug { get; set; }
+        public List<Score> Scores { get; set; } = new List<Score>();
 
         public static Action Parse(string action, Game game)
         {
@@ -145,9 +145,9 @@ namespace SpringChallenge2021
             return 0;
         }
 
-        public virtual int GetScore(Game game)
+        public int GetScore(Game game)
         {
-            return 0;
+            return Scores.Sum(_ => _.Total);
         }
 
         public string Type;
@@ -167,6 +167,11 @@ namespace SpringChallenge2021
         public Action(string type)
             : this(type, 0, 0)
         {
+        }
+
+        public virtual void ComputeScore(Game game)
+        {
+            
         }
 
         public override string ToString()
@@ -199,18 +204,14 @@ namespace SpringChallenge2021
             return 4;
         }
 
-        public override int GetScore(Game game)
+        public override void ComputeScore(Game game)
         {
             var tomorrowSunDirection = Game.SunDirection(game.Day + 1);
 
-            var score = 0;
-
-            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => _.IsMine).Select(_ => 2).Sum(); // Add points where this tree threaten my trees
-            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => !_.IsMine).Select(_ => -2).Sum(); // Remove points where this tree threaten opponent trees
-            score += Tree.Cell.Richness;
-            score += 2; // gives priority on tree completion
-
-            return score;
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Size, $"Ting my:{_.Cell.Index}")));
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Size, $"Ting op:{_.Cell.Index}")));
+            Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
+            Scores.Add(new Score(2, $"Priority")); // Better to grow nearly complete trees
         }
     }
 
@@ -251,21 +252,17 @@ namespace SpringChallenge2021
             throw new NotImplementedException();
         }
 
-        public override int GetScore(Game game)
+        public override void ComputeScore(Game game)
         {
             var tomorrowSunDirection = Game.SunDirection(game.Day + 1);
 
-            var score = 0;
-
-            if (!HasTimeToGrow(game)) return -1;
-
-            score += Tree.GetThreateningTrees(game.Trees, tomorrowSunDirection).Select(_ => -1).Sum(); // Remove points if tree will be threatened tomorrow
-            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => _.IsMine).Select(_ => -2).Sum(); // Remove points where this tree threaten my trees
-            score += Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection).Where(_ => !_.IsMine).Select(_ => 2).Sum(); // Add points where this tree threaten opponent trees
-            score += Tree.Cell.Richness;
-            score += Tree.Size; // Better to grow nearly complete trees
-
-            return score;
+            if (!HasTimeToGrow(game))
+                Scores.Add(new Score(-10, "No time"));
+            Tree.GetThreateningTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).ToList().ForEach(_ => Scores.Add(new Score(-5, $"Td by {_.Cell.Index}"))); // Remove points if tree will be threatened tomorrow
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Size, $"Ting my:{_.Cell.Index}")));
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Size, $"Ting op:{_.Cell.Index}")));
+            Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
+            Scores.Add(new Score(Tree.Size, $"Size")); // Better to grow nearly complete trees
         }
     }
 
@@ -286,20 +283,29 @@ namespace SpringChallenge2021
             return game.Trees.Count(_ => _.IsMine && _.Size == 0);
         }
 
-        public override int GetScore(Game game)
+        public override void ComputeScore(Game game)
         {
-            var score = 0;
+            if (!HasTimeToGrow(game)) 
+                Scores.Add(new Score(-10, "No time"));
 
-            if (!HasTimeToGrow(game)) return -1;
-
-            score += Tree.Cell.Richness;
-
-            return score;
+            Scores.Add(new Score(Tree.Cell.Richness, "Richness"));
         }
 
         public bool HasTimeToGrow(Game game)
         {
             return 3 <= game.NumberOfDaysLeft();
+        }
+    }
+
+    internal class Score
+    {
+        public int Total { get; }
+        public string Comment { get; }
+
+        public Score(int total, string comment = null)
+        {
+            Total = total;
+            Comment = comment;
         }
     }
 
@@ -330,19 +336,14 @@ namespace SpringChallenge2021
         {
             PossibleActions.AddRange(PossibleMoves);
 
+            PossibleActions.ForEach(_ => _.ComputeScore(this));
+
             var timeToGrowAllTrees = Trees.Where(_ => _.IsMine).Sum(_ => _.TimeToGrow());
             if (NumberOfDaysLeft() > timeToGrowAllTrees) // Stop seeding if we don't have time to grow them all
                 PossibleActions.RemoveAll(_ => _ is ActionSeed);
 
 
             return PossibleMoves.OrderByDescending(_ => _.GetScore(this)).First();
-        }
-
-        public void AddAction(Action action, string debug = null)
-        {
-            action.Debug = debug;
-            PossibleActions.Add(action);
-            PossibleMoves.Remove(action);
         }
 
         public static int SunDirection(int day) => day % 6;
@@ -405,21 +406,21 @@ namespace SpringChallenge2021
                     game.Trees.Add(tree);
                 }
 
-                foreach (var cell in game.Board)
-                {
-                    var shadowingTrees = cell.GetShadowingTrees(game.Trees, Game.SunDirection(game.Day));
-                    if (!shadowingTrees.Any())
-                        continue;
-                    Console.Error.WriteLine($"Cell {cell.Index} is shadowed by tree(s) {string.Join(",", shadowingTrees.Select(_ => _.Cell.Index))}");
-                }
+                //foreach (var cell in game.Board)
+                //{
+                //    var shadowingTrees = cell.GetShadowingTrees(game.Trees, Game.SunDirection(game.Day));
+                //    if (!shadowingTrees.Any())
+                //        continue;
+                //    Console.Error.WriteLine($"Cell {cell.Index} is shadowed by tree(s) {string.Join(",", shadowingTrees.Select(_ => _.Cell.Index))}");
+                //}
 
-                foreach (var tree in game.Trees)
-                {
-                    var threateningTrees = tree.GetThreateningTrees(game.Trees, Game.SunDirection(game.Day));
-                    if (!threateningTrees.Any())
-                        continue;
-                    Console.Error.WriteLine($"Tree {tree.Cell.Index} is threatened by tree(s) {string.Join(",", threateningTrees.Select(_ => _.Cell.Index))}");
-                }
+                //foreach (var tree in game.Trees)
+                //{
+                //    var threateningTrees = tree.GetThreateningTrees(game.Trees, Game.SunDirection(game.Day));
+                //    if (!threateningTrees.Any())
+                //        continue;
+                //    Console.Error.WriteLine($"Tree {tree.Cell.Index} is threatened by tree(s) {string.Join(",", threateningTrees.Select(_ => _.Cell.Index))}");
+                //}
 
                 game.PossibleActions.Clear();
                 var numberOfPossibleMoves = int.Parse(Console.ReadLine());
@@ -432,7 +433,8 @@ namespace SpringChallenge2021
 
                 var action = game.GetNextAction();
 
-                game.PossibleActions.ForEach(_ => Console.Error.WriteLine($"{_}: {_.GetScore(game)}"));
+                game.PossibleActions.OrderByDescending(_ => _.GetScore(game)).ToList()
+                    .ForEach(_ => Console.Error.WriteLine($"{_}: {_.GetScore(game)} ({string.Join(",", _.Scores.Select(s => $"{s.Comment} ({s.Total})"))})"));
 
                 Console.WriteLine(action);
             }
