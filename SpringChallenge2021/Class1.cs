@@ -259,10 +259,22 @@ namespace SpringChallenge2021
             if (!HasTimeToGrow(game))
                 Scores.Add(new Score(-10, "No time"));
             Tree.GetThreateningTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).ToList().ForEach(_ => Scores.Add(new Score(-5, $"Td by {_.Cell.Index}"))); // Remove points if tree will be threatened tomorrow
-            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Size, $"Ting my:{_.Cell.Index}")));
-            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Size, $"Ting op:{_.Cell.Index}")));
+
+            var treesThatWillBeThreatenedIfGrown =
+                Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1)
+                    .Except(Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size))
+                    .Where(_ => _.Size > 0).ToList();
+
+            // Growing this tree will threaten one of my trees
+            treesThatWillBeThreatenedIfGrown.Where(_ => _.IsMine).ToList()
+                .ForEach(_ => Scores.Add(new Score(-_.Size, $"Ting my:{_.Cell.Index}")));
+
+            // Growing this tree will threaten opponent tree
+            treesThatWillBeThreatenedIfGrown.Where(_ => !_.IsMine).ToList()
+                .ForEach(_ => Scores.Add(new Score(_.Size, $"Ting op:{_.Cell.Index}")));
+
             Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
-            Scores.Add(new Score(Tree.Size, $"Size")); // Better to grow nearly complete trees
+            Scores.Add(new Score(Tree.Size * 3, $"Size")); // Better to grow nearly complete trees
         }
     }
 
