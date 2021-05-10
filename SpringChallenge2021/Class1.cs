@@ -109,6 +109,9 @@ namespace SpringChallenge2021
         }
 
         public int TimeToGrow() => 3 - Size;
+
+        public int Sunpoints(Game game, int sunDirection) =>
+            GetThreateningTrees(game.Trees, sunDirection).Any() ? 0 : Size;
     }
 
     internal class Action
@@ -208,10 +211,17 @@ namespace SpringChallenge2021
         {
             var tomorrowSunDirection = Game.SunDirection(game.Day + 1);
 
-            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Size, $"Ting my:{_.Cell.Index}")));
-            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Size, $"Ting op:{_.Cell.Index}")));
+            if (game.Day == Game.MaxDays)
+                Scores.Add(new Score(100, "Last turn"));
+
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, tomorrowSunDirection) + 2, $"Ting my:{_.Cell.Index}")));
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, tomorrowSunDirection) - 3, $"Ting op:{_.Cell.Index}")));
             Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
-            Scores.Add(new Score(2, $"Priority")); // Better to grow nearly complete trees
+            //Scores.Add(new Score(2, $"Priority")); 
+            if (game.Day < 12)
+                Scores.Add(new Score(-5, "Start of game"));
+            else if (game.Day < 18)
+                Scores.Add(new Score(-2, "Mid game"));
         }
     }
 
@@ -267,14 +277,25 @@ namespace SpringChallenge2021
 
             // Growing this tree will threaten one of my trees
             treesThatWillBeThreatenedIfGrown.Where(_ => _.IsMine).ToList()
-                .ForEach(_ => Scores.Add(new Score(-_.Size, $"Ting my:{_.Cell.Index}")));
+                .ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, tomorrowSunDirection) - 2, $"Ting my:{_.Cell.Index}")));
 
             // Growing this tree will threaten opponent tree
             treesThatWillBeThreatenedIfGrown.Where(_ => !_.IsMine).ToList()
-                .ForEach(_ => Scores.Add(new Score(_.Size, $"Ting op:{_.Cell.Index}")));
+                .ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, tomorrowSunDirection) + 3, $"Ting op:{_.Cell.Index}")));
 
             Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
-            Scores.Add(new Score(Tree.Size * 3, $"Size")); // Better to grow nearly complete trees
+
+            //if (Tree.Size == 0)
+            //    Scores.Add(new Score(5, "Grow seed")); // keeping a seed doesn't give points
+
+            if (game.Day >= 12 && game.Day < 18)
+                Scores.Add(new Score(2, "Mid game"));
+
+            Scores.Add(new Score(2, "Priority"));
+
+            Scores.Add(new Score(Tree.Size, $"Size")); // Better to grow nearly complete trees
+            //if (game.Trees.Count(_ => _.IsMine && _.Size == 3) < 5)
+            //    Scores.Add(new Score(3, "Not enough trees"));
         }
     }
 
@@ -300,7 +321,32 @@ namespace SpringChallenge2021
             if (!HasTimeToGrow(game)) 
                 Scores.Add(new Score(-10, "No time"));
 
-            Scores.Add(new Score(Tree.Cell.Richness, "Richness"));
+            if (game.Day > 18)
+                Scores.Add(new Score(-2, "Late game"));
+
+            //var timeToGrowAllTrees = game.Trees.Where(_ => _.IsMine).Sum(_ => _.TimeToGrow());
+            //if (game.NumberOfDaysLeft() < timeToGrowAllTrees) // Stop seeding if we don't have time to grow them all
+            //    Scores.Add(new Score(-10, "No time to grow current trees"));
+
+            if (game.Trees.Any(_ => _.IsMine && _.Size == 0))
+                Scores.Add(new Score(-20, "Too much seeds"));
+
+            if (game.NumberOfDaysLeft() > 2)
+            {
+                var treesThatWillBeThreatenedIfGrown =
+                    new Tree(Target, 1, true, false).GetThreatenedTrees(game.Trees, Game.SunDirection(game.Day + 2))
+                        .Where(_ => _.Size > 0).ToList();
+
+                // Growing this tree will threaten one of my trees
+                treesThatWillBeThreatenedIfGrown.Where(_ => _.IsMine).ToList()
+                    .ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, Game.SunDirection(game.Day + 2)), $"Ting my:{_.Cell.Index}")));
+
+                // Growing this tree will threaten opponent tree
+                treesThatWillBeThreatenedIfGrown.Where(_ => !_.IsMine).ToList()
+                    .ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, Game.SunDirection(game.Day + 2)), $"Ting op:{_.Cell.Index}")));
+            }
+            
+            Scores.Add(new Score(Target.Richness, "Richness"));
         }
 
         public bool HasTimeToGrow(Game game)
@@ -331,32 +377,15 @@ namespace SpringChallenge2021
         public int MySun, OpponentSun;
         public int Nutrients;
         public bool OpponentIsWaiting;
-        public List<Action> PossibleActions;
-        public List<Action> PossibleMoves;
         public List<Tree> Trees;
 
         public Game()
         {
             Board = new List<Cell>();
-            PossibleActions = new List<Action>();
             Trees = new List<Tree>();
         }
 
         public int NumberOfDaysLeft() => MaxDays - Day;
-
-        public Action GetNextAction()
-        {
-            PossibleActions.AddRange(PossibleMoves);
-
-            PossibleActions.ForEach(_ => _.ComputeScore(this));
-
-            var timeToGrowAllTrees = Trees.Where(_ => _.IsMine).Sum(_ => _.TimeToGrow());
-            if (NumberOfDaysLeft() > timeToGrowAllTrees) // Stop seeding if we don't have time to grow them all
-                PossibleActions.RemoveAll(_ => _ is ActionSeed);
-
-
-            return PossibleMoves.OrderByDescending(_ => _.GetScore(this)).First();
-        }
 
         public static int SunDirection(int day) => day % 6;
     }
@@ -434,19 +463,23 @@ namespace SpringChallenge2021
                 //    Console.Error.WriteLine($"Tree {tree.Cell.Index} is threatened by tree(s) {string.Join(",", threateningTrees.Select(_ => _.Cell.Index))}");
                 //}
 
-                game.PossibleActions.Clear();
                 var numberOfPossibleMoves = int.Parse(Console.ReadLine());
-                game.PossibleMoves = new List<Action>();
+                var possibleMoves = new List<Action>();
                 for (var i = 0; i < numberOfPossibleMoves; i++)
                 {
                     var possibleMove = Console.ReadLine();
-                    game.PossibleMoves.Add(Action.Parse(possibleMove, game));
+                    //Console.Error.WriteLine(possibleMove);
+                    possibleMoves.Add(Action.Parse(possibleMove, game));
                 }
 
-                var action = game.GetNextAction();
+                possibleMoves.ForEach(_ => _.ComputeScore(game));
 
-                game.PossibleActions.OrderByDescending(_ => _.GetScore(game)).ToList()
-                    .ForEach(_ => Console.Error.WriteLine($"{_}: {_.GetScore(game)} ({string.Join(",", _.Scores.Select(s => $"{s.Comment} ({s.Total})"))})"));
+                var possibleActions = possibleMoves.OrderByDescending(_ => _.GetScore(game)).ToList();
+                possibleActions.ForEach(_ =>
+                    Console.Error.WriteLine(
+                        $"{_}: {_.GetScore(game)} ({string.Join(",", _.Scores.Select(s => $"{s.Comment} ({s.Total})"))})"));
+
+                var action = possibleActions.First();
 
                 Console.WriteLine(action);
             }
