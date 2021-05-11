@@ -37,7 +37,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpringChallenge2020", "Spri
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FallChallenge2020", "FallChallenge2020\FallChallenge2020.csproj", "{40EBCA49-F54A-49A1-AF45-E717EE0EFF1D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpringChallenge2021", "SpringChallenge2021\SpringChallenge2021.csproj", "{4383CA69-992E-440C-8F99-834971634B67}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpringChallenge2021", "SpringChallenge2021\SpringChallenge2021.csproj", "{4383CA69-992E-440C-8F99-834971634B67}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameOfDrones", "GameOfDrones\GameOfDrones.csproj", "{9D3789FB-D1E3-4579-89AA-3134D3360AE0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -117,6 +119,10 @@ Global
 		{4383CA69-992E-440C-8F99-834971634B67}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4383CA69-992E-440C-8F99-834971634B67}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4383CA69-992E-440C-8F99-834971634B67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
