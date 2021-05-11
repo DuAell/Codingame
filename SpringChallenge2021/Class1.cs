@@ -318,6 +318,9 @@ namespace SpringChallenge2021
 
         public override void ComputeScore(Game game)
         {
+            if (GetCost(game) == 0)
+                Scores.Add(new Score(1000, "Cost nothing"));
+
             if (!HasTimeToGrow(game)) 
                 Scores.Add(new Score(-10, "No time"));
 
