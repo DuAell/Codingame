@@ -214,14 +214,15 @@ namespace SpringChallenge2021
             if (game.Day == Game.MaxDays)
                 Scores.Add(new Score(100, "Last turn"));
 
-            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, tomorrowSunDirection) + 2, $"Ting my:{_.Cell.Index}")));
-            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, tomorrowSunDirection) - 3, $"Ting op:{_.Cell.Index}")));
+            if (game.Trees.Count(_ => _.IsMine && _.Size == 3) > 3)
+                Scores.Add(new Score(100, "Too many trees"));
+
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => _.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, tomorrowSunDirection), $"Ting my:{_.Cell.Index}")));
+            Tree.GetThreatenedTrees(game.Trees, tomorrowSunDirection, Tree.Size + 1).Where(_ => !_.IsMine && _.Size > 0).ToList().ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, tomorrowSunDirection), $"Ting op:{_.Cell.Index}")));
             Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
-            //Scores.Add(new Score(2, $"Priority")); 
+
             if (game.Day < 12)
                 Scores.Add(new Score(-5, "Start of game"));
-            else if (game.Day < 18)
-                Scores.Add(new Score(-2, "Mid game"));
         }
     }
 
@@ -277,18 +278,18 @@ namespace SpringChallenge2021
 
             // Growing this tree will threaten one of my trees
             treesThatWillBeThreatenedIfGrown.Where(_ => _.IsMine).ToList()
-                .ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, tomorrowSunDirection) - 2, $"Ting my:{_.Cell.Index}")));
+                .ForEach(_ => Scores.Add(new Score(-_.Sunpoints(game, tomorrowSunDirection), $"Ting my:{_.Cell.Index}")));
 
             // Growing this tree will threaten opponent tree
             treesThatWillBeThreatenedIfGrown.Where(_ => !_.IsMine).ToList()
-                .ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, tomorrowSunDirection) + 3, $"Ting op:{_.Cell.Index}")));
+                .ForEach(_ => Scores.Add(new Score(_.Sunpoints(game, tomorrowSunDirection), $"Ting op:{_.Cell.Index}")));
 
             Scores.Add(new Score(Tree.Cell.Richness, $"Richness"));
 
-            //if (Tree.Size == 0)
-            //    Scores.Add(new Score(5, "Grow seed")); // keeping a seed doesn't give points
+            if (Tree.Size == 0 && game.Trees.Count(_ => _.IsMine && _.Size == 1) < 3)
+                Scores.Add(new Score(5, "Grow seed")); // keeping a seed doesn't give points
 
-            if (game.Day >= 12 && game.Day < 18)
+            if (game.Day >= 4 && game.Day < 18)
                 Scores.Add(new Score(2, "Mid game"));
 
             Scores.Add(new Score(2, "Priority"));
