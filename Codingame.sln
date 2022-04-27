@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.28315.86
+# Visual Studio Version 17
+VisualStudioVersion = 17.1.32328.378
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BottersOfTheGalaxy", "BottersOfTheGalaxy\BottersOfTheGalaxy.csproj", "{7D92FD0E-C79E-4BE9-82D4-7BB94956D835}"
 EndProject
@@ -39,7 +39,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FallChallenge2020", "FallCh
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpringChallenge2021", "SpringChallenge2021\SpringChallenge2021.csproj", "{4383CA69-992E-440C-8F99-834971634B67}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameOfDrones", "GameOfDrones\GameOfDrones.csproj", "{9D3789FB-D1E3-4579-89AA-3134D3360AE0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameOfDrones", "GameOfDrones\GameOfDrones.csproj", "{9D3789FB-D1E3-4579-89AA-3134D3360AE0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpringChallenge2022", "SpringChallenge2022\SpringChallenge2022.csproj", "{577BF222-F46A-4E23-9041-1D51DC0DFB27}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -123,6 +125,10 @@ Global
 		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D3789FB-D1E3-4579-89AA-3134D3360AE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{577BF222-F46A-4E23-9041-1D51DC0DFB27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{577BF222-F46A-4E23-9041-1D51DC0DFB27}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{577BF222-F46A-4E23-9041-1D51DC0DFB27}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{577BF222-F46A-4E23-9041-1D51DC0DFB27}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
