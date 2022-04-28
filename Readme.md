@@ -6,3 +6,5 @@ This repository contains all IAs I have developped for [Codingame](https://www.c
 
 ## Reuseable code
 Project "Helper" contains some classes and code that are easily reuseable
+
+![Build](https://github.com/DuAell/Codingame/actions/workflows/dotnet.yml/badge.svg)
