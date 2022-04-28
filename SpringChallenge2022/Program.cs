@@ -238,7 +238,7 @@ class Player
             myHeroes.RemoveAll(_ => !entityIds.Contains(_.Id));
             oppHeroes.RemoveAll(_ => !entityIds.Contains(_.Id));
 
-            foreach (var monster in monsters.Where(_ => _.NumberOfTurnsBeforeHittingTarget < 15))
+            foreach (var monster in monsters.Where(_ => _.NumberOfTurnsBeforeHittingTarget < 20))
             {
                 Console.Error.WriteLine($"{monster.Id} will hit {(monster.ThreatFor == 1 ? "my base" : "ennemy base")} in {monster.NumberOfTurnsBeforeHittingTarget} turns (Dist: {monster.Position.Euclidian(monster.ThreatFor == 1 ? MyBase : EnnemyBase)})");
             }
@@ -284,6 +284,7 @@ class Player
                     Console.Error.WriteLine($"Distance to ennemy heroes: {string.Join(", ", oppHeroes.Select(_ => $"{_.Id}: {_.Position.Euclidian(hero.Position)}"))}");
 
                     // Farm in middle of the map until mid game
+                    // Other idea : double push strategy
                     if (Turn < MidGame)
                     {
                         hero.SetInitialPosition(new Position(maxX / 2, maxY / 2));
@@ -307,17 +308,23 @@ class Player
                         Console.WriteLine($"MOVE {hero.InitialPosition} (A) Positioning");
                         continue;
                     }
-                    else
-                    {
-                        hero.SetInitialPosition(new Position(Math.Abs(EnnemyBase.X - 3500), Math.Abs(EnnemyBase.Y - 3500)));
 
-                        // Then go to opposite side of ennemy base (same Y)
-                        // Go towards ennemy base while CONTROL all monster found on the way
-                        // When close to ennemy base, apply shield to all monsters
-                        // Overwhelm ennemy heroes and WIND 
+                    // Midgame strategy
+                    // Go to opposite side of ennemy base (same Y)
+                    // Go towards ennemy base while CONTROL all monster found on the way
+                    // When close to ennemy base, apply shield to all monsters
+                    // Overwhelm ennemy heroes and WIND 
+
+                    // Go to opposite side of ennemy base (same Y)
+                    hero.SetInitialPosition(new Position(Math.Abs(maxX - EnnemyBase.X), Math.Abs(EnnemyBase.Y - 2500)));
+                    if (!hero.HasTakenInitialPosition)
+                    {
+                        Console.WriteLine($"MOVE {hero.InitialPosition} (A) Positioning");
+                        continue;
                     }
 
-                    var unshieldedMonsterCloseToEnnemyBase = hero.GetClosest(monsters.Where(_ => _.ThreatFor == 2 && _.ShieldLife == 0 && oppHeroes.Any(h => h.Position.Euclidian(_.Position) <= SpellWindRange))).FirstOrDefault();
+                    // When close to ennemy base, apply shield to all monsters
+                    var unshieldedMonsterCloseToEnnemyBase = hero.GetClosest(monsters.Where(_ => _.ThreatFor == 2 && _.ShieldLife == 0 && _.Position.Euclidian(EnnemyBase) <= 7000)).OrderByDescending(_ => _.Health).FirstOrDefault();
                     if (unshieldedMonsterCloseToEnnemyBase != null && MyMana >= 10 && OppMana >= 10)
                     {
                         hero.Spell($"SHIELD {unshieldedMonsterCloseToEnnemyBase.Id}", "Shield spider");
@@ -325,9 +332,17 @@ class Player
                     }
 
                     // If there is a pack of monsters, push them to ennemy base
-                    if (MyMana >= 10 && hero.GetClosest(monsters.Where(_ => _.ThreatFor == 2 && _.ShieldLife == 0)).Count() >= 3)
+                    if (MyMana >= 10 && monsters.Where(_ => _.Position.Euclidian(hero.Position) <= SpellWindRange && _.ShieldLife == 0 && _.Position.Euclidian(EnnemyBase) <= BaseAttractionRange + SpellWindPushForce).Count() >= 3)
                     {
                         hero.Spell($"WIND {EnnemyBase}", "(A) Push pack to ennemy base");
+                        continue;
+                    }
+
+                    // Disengage ennemy heroes of monsters
+                    var ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.GetNumbersOfMonstersInAttackRange(monsters) > 0 && _.Position.Euclidian(EnnemyBase) < 7000).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault();
+                    if (MyMana >= 10 && ennemyHero != null)
+                    {
+                        hero.Spell($"CONTROL {ennemyHero.Id} {MyBase}", $"(A) Control {ennemyHero.Id}");
                         continue;
                     }
 
@@ -340,41 +355,35 @@ class Player
                         continue;
                     }
 
-                    // Disengage ennemy heroes of monsters
-                    var ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.GetNumbersOfMonstersInAttackRange(monsters) > 0 && _.Position.Euclidian(EnnemyBase) < 7000).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault();
+                    // Removing ennemy heroes from their defense positions
+                    ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.Position.Euclidian(EnnemyBase) < 7000).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault(); // Compute numbers of monsters in range
                     if (MyMana >= 10 && ennemyHero != null)
                     {
                         hero.Spell($"CONTROL {ennemyHero.Id} {MyBase}", $"(A) Control {ennemyHero.Id}");
                         continue;
                     }
 
-                    if (Turn > 150)
+                    // CONTROL all monsters
+                    var monstersNotGoingToEnnemyBase = monsters.Where(_ => _.Position.Euclidian(hero.Position) < SpellControlRange && _.ShieldLife == 0 && _.ThreatFor != 2 && _.Health > 10);
+                    if (MyMana >= 10 && monstersNotGoingToEnnemyBase.Any())
                     {
-                        // Focus on removing ennemy heroes from their defense positions
-                        ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.Position.Euclidian(EnnemyBase) < 7000).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault(); // Compute numbers of monsters in range
-                        if (MyMana >= 10 && ennemyHero != null)
-                        {
-                            hero.Spell($"CONTROL {ennemyHero.Id} {MyBase}", $"(A) Control {ennemyHero.Id}");
-                            continue;
-                        }
-                    }
-
-                    // Getting close to monster without attacking him
-                    var closestMonsterOfEnnemyBase = monsters.Where(_ => _.NearBase == 1 && _.ShieldLife == 0 && _.ThreatFor == 2 && _.Position.Euclidian(hero.Position) > HeroMoveRange).OrderBy(m => m.Position.Euclidian(hero.Position)).FirstOrDefault();
-                    if (MyMana >= 10 && closestMonsterOfEnnemyBase != null)
-                    {
-                        Console.WriteLine($"MOVE {closestMonsterOfEnnemyBase.Position} (A) Getting close of {closestMonsterOfEnnemyBase.Id}");
+                        var monster = monstersNotGoingToEnnemyBase.First();
+                        monster.ThreatFor = 2;
+                        monster.NearBase = 0;
+                        hero.Spell($"CONTROL {monster.Id} {EnnemyBase}", $"(A) This way !");
                         continue;
                     }
 
-                    //var monstersNotGoingToEnnemyBase = monsters.Where(_ => _.Position.Euclidian(hero.Position) < SpellControlRange && _.ShieldLife == 0 && _.ThreatFor != 2 && _.Health > 10);
-                    //if (myMana >= 10 && monstersNotGoingToEnnemyBase.Any())
+                    var heroPositionCloseToEnnemyBase = new Position(Math.Abs(EnnemyBase.X - 3500), Math.Abs(EnnemyBase.Y - 2500));
+                    Console.WriteLine($"MOVE {heroPositionCloseToEnnemyBase} (A) Positioning");
+                    continue;
+
+
+                    //// Getting close to monster without attacking him
+                    //var closestMonsterOfEnnemyBase = monsters.Where(_ => _.NearBase == 1 && _.ShieldLife == 0 && _.ThreatFor == 2 && _.Position.Euclidian(hero.Position) > HeroMoveRange).OrderBy(m => m.Position.Euclidian(hero.Position)).FirstOrDefault();
+                    //if (MyMana >= 10 && closestMonsterOfEnnemyBase != null)
                     //{
-                    //    var monster = monstersNotGoingToEnnemyBase.First();
-                    //    monster.ThreatFor = 2;
-                    //    monster.NearBase = 0;
-                    //    Console.WriteLine($"SPELL CONTROL {monster.Id} {ennemyBase} (A) This way !");
-                    //    myMana -= 10;
+                    //    Console.WriteLine($"MOVE {closestMonsterOfEnnemyBase.Position} (A) Getting close of {closestMonsterOfEnnemyBase.Id}");
                     //    continue;
                     //}
 
@@ -418,15 +427,15 @@ class Player
                 if (myHeroes[1] == hero)
                 {
                     hero.SetInitialPosition(new Position(Math.Abs(MyBase.X - 4600), Math.Abs(MyBase.Y - 1700)));
-                    hero.Leash = 8000;
+                    hero.Leash = 7000;
                 }
                 else
                 {
                     hero.SetInitialPosition(new Position(Math.Abs(MyBase.X - 2400), Math.Abs(MyBase.Y - 4400)));
                     if (Turn <= 50)
-                        hero.Leash = 15000;
-                    else
                         hero.Leash = 10000;
+                    else
+                        hero.Leash = 8000;
                 }                   
 
                 if (hero.Position.Euclidian(MyBase) < hero.Leash) //myHeroes[0] == hero || myHeroes[1] == hero && hero.Position.Euclidian(myBase) < 9000 || myHeroes[2] == hero && hero.Position.Euclidian(myBase) < 7000) // Leash
