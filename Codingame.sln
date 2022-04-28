@@ -41,7 +41,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpringChallenge2021", "Spri
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameOfDrones", "GameOfDrones\GameOfDrones.csproj", "{9D3789FB-D1E3-4579-89AA-3134D3360AE0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpringChallenge2022", "SpringChallenge2022\SpringChallenge2022.csproj", "{577BF222-F46A-4E23-9041-1D51DC0DFB27}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpringChallenge2022", "SpringChallenge2022\SpringChallenge2022.csproj", "{577BF222-F46A-4E23-9041-1D51DC0DFB27}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{5136BA55-25C0-41B4-8887-58C1A9009BDD}"
+	ProjectSection(SolutionItems) = preProject
+		Readme.md = Readme.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
