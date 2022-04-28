@@ -7,6 +7,9 @@ This repository contains all AIs I have developed for [Codingame](https://www.co
 # Reuseable code
 Project [Helper](https://github.com/DuAell/Codingame/tree/main/Helper) contains some classes and code that are easily reuseable
 
+# Team play
+If you wish to play with me as a team, please contact me and feel free to drop some PRs.
+
 # Disclaimer
 There is no intent on doing clean code, but quick-and-dirty code that just works. Codingame is a game, with a limited time frame.
 
