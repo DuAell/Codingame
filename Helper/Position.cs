@@ -17,6 +17,8 @@ namespace Helper
 
         public int Manhattan(Position p2) => Math.Abs(X - p2.X) + Math.Abs(Y - p2.Y);
 
+        public int Euclidian(Position p2) => (int)Math.Sqrt(Math.Pow(X - p2.X, 2) + Math.Pow(Y - p2.Y, 2));
+
         public override string ToString()
         {
             return X + " " + Y;
