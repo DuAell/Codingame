@@ -125,6 +125,11 @@ class Player
             HasTakenInitialPosition = false;
         }
 
+        public void ResetHasTakenInitialPosition()
+        {
+            HasTakenInitialPosition = false;
+        }
+
         public int GetNumbersOfMonstersInAttackRange(IEnumerable<Monster> monsters)
         {
             return monsters.Count(_ => Position.Euclidian(_.Position) <= HeroAttackRange);
@@ -174,10 +179,12 @@ class Player
         var myHeroes = new List<Hero>();
         var oppHeroes = new List<Hero>();
         var monsters = new List<Monster>();
+        var controlledEntities = new List<Entity>();
 
         // game loop
         while (true)
         {
+            controlledEntities.Clear();
             #region Game data
             Turn++;
             inputs = Console.ReadLine().Split(' ');
@@ -246,7 +253,7 @@ class Player
 
             foreach (var hero in myHeroes)
             {
-                Console.Error.WriteLine($"Distance to my base: {hero.Position.Euclidian(MyBase)}");
+                Console.Error.WriteLine($"{hero.Id} Distance to my base: {hero.Position.Euclidian(MyBase)}");
 
                 if (!monsters.Contains(hero.Target))
                     hero.Target = null;
@@ -319,7 +326,7 @@ class Player
                     hero.SetInitialPosition(new Position(Math.Abs(maxX - EnnemyBase.X), Math.Abs(EnnemyBase.Y - 2500)));
                     if (!hero.HasTakenInitialPosition)
                     {
-                        Console.WriteLine($"MOVE {hero.InitialPosition} (A) Positioning");
+                        Console.WriteLine($"MOVE {hero.InitialPosition} (A) Positioning for collection");
                         continue;
                     }
 
@@ -339,10 +346,11 @@ class Player
                     }
 
                     // Disengage ennemy heroes of monsters
-                    var ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.GetNumbersOfMonstersInAttackRange(monsters) > 0 && _.Position.Euclidian(EnnemyBase) < 7000).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault();
+                    var ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.GetNumbersOfMonstersInAttackRange(monsters) > 0 && _.Position.Euclidian(EnnemyBase) < 7000 && !controlledEntities.Contains(_)).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault();
                     if (MyMana >= 10 && ennemyHero != null)
                     {
                         hero.Spell($"CONTROL {ennemyHero.Id} {MyBase}", $"(A) Control {ennemyHero.Id}");
+                        controlledEntities.Add(ennemyHero);
                         continue;
                     }
 
@@ -356,25 +364,30 @@ class Player
                     }
 
                     // Removing ennemy heroes from their defense positions
-                    ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.Position.Euclidian(EnnemyBase) < 7000).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault(); // Compute numbers of monsters in range
+                    ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && _.Position.Euclidian(EnnemyBase) < 7000 && !controlledEntities.Contains(_)).OrderByDescending(_ => _.GetNumbersOfMonstersInAttackRange(monsters)).FirstOrDefault(); // Compute numbers of monsters in range
                     if (MyMana >= 10 && ennemyHero != null)
                     {
                         hero.Spell($"CONTROL {ennemyHero.Id} {MyBase}", $"(A) Control {ennemyHero.Id}");
+                        controlledEntities.Add(ennemyHero);
                         continue;
                     }
 
                     // CONTROL all monsters
-                    var monstersNotGoingToEnnemyBase = monsters.Where(_ => _.Position.Euclidian(hero.Position) < SpellControlRange && _.ShieldLife == 0 && _.ThreatFor != 2 && _.Health > 10);
+                    var monstersNotGoingToEnnemyBase = monsters.Where(_ => _.Position.Euclidian(hero.Position) < SpellControlRange && _.ShieldLife == 0 && _.ThreatFor != 2 && _.Health > 10 && !controlledEntities.Contains(_));
                     if (MyMana >= 10 && monstersNotGoingToEnnemyBase.Any())
                     {
                         var monster = monstersNotGoingToEnnemyBase.First();
                         monster.ThreatFor = 2;
                         monster.NearBase = 0;
                         hero.Spell($"CONTROL {monster.Id} {EnnemyBase}", $"(A) This way !");
+                        controlledEntities.Add(monster);
                         continue;
                     }
 
                     var heroPositionCloseToEnnemyBase = new Position(Math.Abs(EnnemyBase.X - 3500), Math.Abs(EnnemyBase.Y - 2500));
+                    if (hero.Position.Euclidian(heroPositionCloseToEnnemyBase) < HeroMoveRange)
+                        hero.ResetHasTakenInitialPosition();
+
                     Console.WriteLine($"MOVE {heroPositionCloseToEnnemyBase} (A) Positioning");
                     continue;
 
@@ -440,6 +453,14 @@ class Player
 
                 if (hero.Position.Euclidian(MyBase) < hero.Leash) //myHeroes[0] == hero || myHeroes[1] == hero && hero.Position.Euclidian(myBase) < 9000 || myHeroes[2] == hero && hero.Position.Euclidian(myBase) < 7000) // Leash
                 {
+                    // Push ennemy hero out
+                    var ennemyHero = oppHeroes.Where(_ => _.Position.Euclidian(MyBase) < 7000 && _.ShieldLife == 0 && _.Position.Euclidian(hero.Position) <= SpellWindRange && monsters.Any(m => _.Position.Euclidian(m.Position) < SpellWindRange) && !controlledEntities.Contains(_)).FirstOrDefault();
+                    if (MyMana >= 10 && ennemyHero != null)
+                    {
+                        hero.Spell($"WIND {EnnemyBase}", $"(D) Push hero out {ennemyHero.Id}");
+                        continue;
+                    }
+
                     if (hero.Target != null && hero.Target.NearBase == 1 && hero.Target.ThreatFor == 1)
                     {
                         hero.Attack(hero.Target, "(D) Pursue");
@@ -453,13 +474,14 @@ class Player
                         continue;
                     }
 
-                    var monstersCloseToMyBase = monsters.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && !(_.ThreatFor == 1 && _.NearBase == 1) && _.Health > 20).OrderBy(_ => _.NumberOfTurnsBeforeHittingTarget).ThenByDescending(_ => _.ThreatFor);
+                    var monstersCloseToMyBase = monsters.Where(_ => _.Position.Euclidian(hero.Position) <= SpellControlRange && _.ShieldLife == 0 && !(_.ThreatFor == 1 && _.NearBase == 1) && _.Health > 20 && !controlledEntities.Contains(_)).OrderBy(_ => _.NumberOfTurnsBeforeHittingTarget).ThenByDescending(_ => _.ThreatFor);
                     if (MyMana >= 10 && monstersCloseToMyBase.Any())
                     {
                         var monster = monstersCloseToMyBase.First();
                         hero.Target = monster;
                         monster.ThreatFor = 2;
                         monster.NearBase = 0;
+                        controlledEntities.Add(monster);
                         hero.Spell($"CONTROL {monster.Id} {EnnemyBase}", $"(D) Control {monster.Id}");
                         continue;
                     }
