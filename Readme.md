@@ -5,9 +5,6 @@ This repository contains all AIs I have developed for [Codingame](https://www.co
 [My Codingame profile](https://www.codingame.com/profile/f378e04f775907136d53cfd4fecd31e6138732)
 
 # Reuseable code
-
-[![Join the chat at https://gitter.im/DuAellCodingame/community](https://badges.gitter.im/DuAellCodingame/community.svg)](https://gitter.im/DuAellCodingame/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
 Project [Helper](https://github.com/DuAell/Codingame/tree/main/Helper) contains some classes and code that are easily reuseable
 
 # Team play
@@ -19,3 +16,5 @@ There is no intent on doing clean code, but quick-and-dirty code that just works
 ---
 
 ![Build](https://github.com/DuAell/Codingame/actions/workflows/dotnet.yml/badge.svg)
+
+[![Join the chat at https://gitter.im/DuAellCodingame/community](https://badges.gitter.im/DuAellCodingame/community.svg)](https://gitter.im/DuAellCodingame/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
