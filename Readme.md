@@ -16,3 +16,5 @@ There is no intent on doing clean code, but quick-and-dirty code that just works
 ---
 
 ![Build](https://github.com/DuAell/Codingame/actions/workflows/dotnet.yml/badge.svg)
+
+[![Join the chat at https://gitter.im/DuAellCodingame/community](https://badges.gitter.im/DuAellCodingame/community.svg)](https://gitter.im/DuAellCodingame/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
