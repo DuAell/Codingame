@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -57,6 +58,12 @@ public class Tile
     public bool CanBuild { get; set; }
     public bool CanSpawn { get; set; }
     public bool InRangeOfRecycler { get; set; }
+
+    public IEnumerable<Tile> GetNeighbors(Map map)
+    {
+        return map.Tiles.Where(
+            _ => Math.Abs(Position.X - _.Position.X) <= 1 && Math.Abs(Position.Y - _.Position.Y) <= 1);
+    }
 }
 
 public class Map
@@ -131,12 +138,12 @@ class Game
                     var units = int.Parse(inputs[2]);
                     foreach (var i in Enumerable.Range(0, units))
                     {
-                        Map.Robots.Add(new Robot{Player = Me, Tile = tile});
+                        Map.Robots.Add(new Robot{Player = tile.Player, Tile = tile});
                     }
 
                     var recycler = int.Parse(inputs[3]);
                     if (recycler == 1)
-                        Map.Recyclers.Add(new Recycler{Player = Me, Tile = tile});
+                        Map.Recyclers.Add(new Recycler{Player = tile.Player, Tile = tile});
 
                     tile.CanBuild = int.Parse(inputs[4]) == 1;
                     tile.CanSpawn = int.Parse(inputs[5]) == 1;
@@ -150,6 +157,46 @@ class Game
 
     private static void DecideNextMove()
     {
-        Console.WriteLine("WAIT");
+        var actions = new List<string>();
+
+        foreach (var robot in Map.Robots.Where(_ => _.Player == Me))
+        {
+            var nearestTile = Map.Tiles.Where(_ => _.Player != Me).OrderByDescending(_ => _.Position.Manhattan(robot.Tile.Position)).First();
+            actions.Add($"MOVE 1 {robot.Tile.Position.XY} {nearestTile.Position.XY}");
+        }
+
+        var originalActionCount = 0;
+        while (Me.Matter >= 10 && originalActionCount != actions.Count)
+        {
+            originalActionCount = actions.Count;
+            if (Map.Recyclers.Count(_ => _.Player == Me) < 2)
+            {
+                var tiles = Map.Tiles.Where(_ => _.CanBuild)
+                    .Where(_ => !_.GetNeighbors(Map).Intersect(Map.Recyclers.Select(r => r.Tile)).Any()) // Pas de recycleurs les uns à côté des autres
+                    .OrderByDescending(_ => _.GetNeighbors(Map).Sum(t => t.ScrapAmount));
+                var tile = tiles.FirstOrDefault();
+                if (tile != null)
+                {
+                    actions.Add($"BUILD {tile.Position.XY}");
+                    Me.Matter -= 10;
+                    Map.Recyclers.Add(new Recycler{Player = Me, Tile = tile});
+                }
+            }
+
+            if (Map.Robots.Count(_ => _.Player == Me) < 3)
+            {
+                var tiles = Map.Tiles.Where(_ => _.CanSpawn)
+                    .OrderByDescending(_ => _.GetNeighbors(Map).Sum(t => t.ScrapAmount));
+                var tile = tiles.FirstOrDefault();
+                if (tile != null)
+                {
+                    actions.Add($"SPAWN 1 {tile.Position.XY}");
+                    Me.Matter -= 10;
+                    Map.Robots.Add(new Robot { Player = Me, Tile = tile });
+                }
+            }
+        }
+
+        Console.WriteLine(actions.Any() ? string.Join(";", actions) : "WAIT");
     }
 }
