@@ -206,6 +206,8 @@ class Game
             }
         }
 
+        // TODO : Si ennemi proche => regroup, sinon s'éparpiller
+
         var lonelyRobots = myRobots.Where(_ => _.OtherRobotsOnSameTile.Count == 0).Skip(3).ToList();
         // Regroup
         foreach (var lonelyRobot in lonelyRobots)
@@ -236,7 +238,7 @@ class Game
         {
             originalActionCount = Actions.Count;
 
-            if (Map.Tiles.Count(_ => _.Player == Me) < Map.Tiles.Count(_ => _.Player == Opponent) && Turn > 20) // Moins de tiles que l'adversaire, on arrête de faire des recycleurs pour éviter d'en perdre plus
+            if (Map.Tiles.Count(_ => _.Player == Me) < Map.Tiles.Count(_ => _.Player == Opponent) && Turn > 20 && Me.Matter < 40) // Moins de tiles que l'adversaire, on arrête de faire des recycleurs pour éviter d'en perdre plus
             {
                 if (Map.Recyclers.Count(_ => _.Player == Me) < 2)
                 {
@@ -264,7 +266,7 @@ class Game
                 var tile = robots.FirstOrDefault()?.Tile;
                 if (tile != null)
                 {
-                    Actions.Add($"SPAWN 1 {tile.Position.XY}");
+                    Actions.Add($"SPAWN 1 {tile.Position.XY}"); // TODO : Spawner des groupes d'attaques
                     Me.Matter -= 10;
                     Map.Robots.Add(new Robot { Player = Me, Tile = tile });
                 }
